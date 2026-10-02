@@ -1,0 +1,24 @@
+// Question: how does preview AI Gateway tier OpenTelemetry GenAI telemetry compare with Standard v2 APIM LLM logs? Tables: AppDependencies, AppTraces, AppRequests, ApiManagementGatewayLlmLog. Columns marked verify_after_live_deploy require live AI Gateway tier telemetry validation.
+let TierGenAi =
+    union isfuzzy=true AppDependencies, AppTraces, AppRequests
+    | extend props = todynamic(Properties)
+    | where bag_keys(props) has_any ("gen_ai.request.model", "gen_ai.response.model", "gen_ai.operation.name", "gen_ai.token.type")
+        or tostring(Name) has "gen_ai"
+        or tostring(Message) has "gen_ai"
+    | extend Gateway = "aigateway-tier",
+             Model = coalesce(tostring(props["gen_ai.request.model"]), tostring(props["gen_ai.response.model"]), tostring(props["gen_ai.model"]), "verify_after_live_deploy"),
+             Operation = coalesce(tostring(props["gen_ai.operation.name"]), tostring(props["gen_ai.operation"]), "verify_after_live_deploy"),
+             TokenType = coalesce(tostring(props["gen_ai.token.type"]), tostring(props["gen_ai.usage.token_type"]), "verify_after_live_deploy"),
+             TokenCount = todouble(coalesce(props["gen_ai.usage.input_tokens"], props["gen_ai.usage.output_tokens"], props["gen_ai.usage.total_tokens"], props["token_count"], 0)),
+             CorrelationId = coalesce(tostring(OperationId), tostring(props["trace_id"]), tostring(props["correlation_id"]));
+let StandardV2 =
+    ApiManagementGatewayLlmLog
+    | extend Gateway = "apim-standard-v2",
+             Model = tostring(ModelName),
+             Operation = "chat-or-responses",
+             TokenType = "total",
+             TokenCount = todouble(TotalTokens),
+             CorrelationId = tostring(CorrelationId);
+union isfuzzy=true TierGenAi, StandardV2
+| summarize Requests=count(), Tokens=sum(TokenCount) by Gateway, Model, Operation, TokenType, bin(TimeGenerated, 1h)
+| order by TimeGenerated desc, Gateway asc

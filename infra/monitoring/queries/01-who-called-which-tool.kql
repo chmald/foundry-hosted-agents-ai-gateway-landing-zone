@@ -1,0 +1,32 @@
+// Question: who (human + agent) called which tool/backend, with tokens, when, and was it allowed? Tables: ContainerAppConsoleLogs_CL, AppTraces, ApiManagementGatewayMCPLog, ApiManagementGatewayLlmLog.
+let ToolAudit =
+    union isfuzzy=true
+        (ContainerAppConsoleLogs_CL | project TimeGenerated, RawLog=tostring(Log_s)),
+        (AppTraces | project TimeGenerated, RawLog=tostring(Message))
+    | where RawLog has '"event":"tool_audit"'
+    | extend audit = parse_json(RawLog)
+    | project
+        TimeGenerated,
+        trace_id = tostring(audit.trace_id),
+        service = tostring(audit.service),
+        tool = tostring(audit.tool),
+        operation = tostring(audit.operation),
+        decision = tostring(audit.decision),
+        reason = tostring(audit.reason),
+        human_oid = tostring(audit.human_principal.oid),
+        agent_appid = tostring(audit.agent_principal.appid),
+        agent_oid = tostring(audit.agent_principal.oid),
+        gateway_request_id = tostring(audit.gateway_request_id),
+        status_code = toint(audit.status_code);
+let GatewayTools =
+    ApiManagementGatewayMCPLog
+    | project McpTime=TimeGenerated, CorrelationId, ServerName, ToolName, Method, TransportType, Error;
+let Tokens =
+    ApiManagementGatewayLlmLog
+    | summarize PromptTokens=sum(PromptTokens), CompletionTokens=sum(CompletionTokens), TotalTokens=sum(TotalTokens) by CorrelationId;
+ToolAudit
+| join kind=leftouter GatewayTools on $left.gateway_request_id == $right.CorrelationId
+| join kind=leftouter Tokens on CorrelationId
+| project TimeGenerated, trace_id, human_oid, agent_appid, agent_oid, service, tool=coalesce(tool, ToolName), operation=coalesce(operation, Method), decision, reason, status_code, PromptTokens, CompletionTokens, TotalTokens, ServerName, TransportType
+| order by TimeGenerated desc
+

@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/microsoft/AgentSchema/refs/heads/main/schemas/v1.0/ContainerAgent.yaml
+kind: hosted
+name: agent-langgraph
+protocols:
+  - protocol: responses
+    version: 2.0.0
+resources:
+  cpu: "0.5"
+  memory: "1Gi"
+environment_variables:
+  - name: MODEL_DEPLOYMENT_NAME
+    value: ${MODEL_DEPLOYMENT_NAME}
+  - name: AGENT_DEFAULT_GATEWAY
+    value: ${AGENT_DEFAULT_GATEWAY}

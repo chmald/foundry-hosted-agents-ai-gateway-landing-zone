@@ -1,0 +1,12 @@
+// Question: sample LLM message logs and token accounting. Tables: ApiManagementGatewayLlmLog.
+ApiManagementGatewayLlmLog
+| extend
+    ModelName = tostring(column_ifexists("ModelName", column_ifexists("Model", ""))),
+    PromptTokens = toint(column_ifexists("PromptTokens", int(null))),
+    CompletionTokens = toint(column_ifexists("CompletionTokens", int(null))),
+    TotalTokens = toint(column_ifexists("TotalTokens", int(null))),
+    PromptMessages = tostring(column_ifexists("PromptMessages", column_ifexists("RequestMessages", ""))),
+    CompletionMessages = tostring(column_ifexists("CompletionMessages", column_ifexists("ResponseMessages", "")))
+| project TimeGenerated, CorrelationId, ModelName, PromptTokens, CompletionTokens, TotalTokens, PromptMessages, CompletionMessages
+| order by TimeGenerated desc
+| take 100

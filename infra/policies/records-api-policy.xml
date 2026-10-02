@@ -1,0 +1,25 @@
+<policies>
+    <inbound>
+        <base />
+        <validate-azure-ad-token tenant-id="common" output-token-variable-name="validatedToken" failed-validation-httpcode="401" failed-validation-error-message="Missing or invalid gateway token.">
+            <audiences>
+                <audience>{{gateway-audience}}</audience>
+                <audience>https://cognitiveservices.azure.com</audience>
+            </audiences>
+        </validate-azure-ad-token>
+        <include-fragment fragment-id="identity-headers" />
+        <set-header name="traceparent" exists-action="skip">
+            <value>@(context.Request.Headers.GetValueOrDefault("traceparent", string.Empty))</value>
+        </set-header>
+        <rate-limit-by-key calls="240" renewal-period="60" counter-key="@((string)context.Variables[&quot;validatedAzp&quot;])" />
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

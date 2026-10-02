@@ -1,0 +1,122 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+name: foundry-hosted-agents-ai-gateway-landing-zone
+metadata:
+  template: foundry-hosted-agents-ai-gateway-landing-zone@1.0.0
+requiredVersions:
+  extensions:
+    azure.ai.agents: ">=1.0.0-beta.18"
+infra:
+  provider: bicep
+  path: infra
+  module: azd
+services:
+  agent-maf:
+    project: ./src/agents/maf
+    host: azure.ai.agent
+    language: docker
+    docker:
+      remoteBuild: true
+    kind: hosted
+    name: agent-maf
+    description: Microsoft Agent Framework hosted agent that reaches models and tools through the selected gateway.
+    startupCommand: python main.py
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+    env:
+      DD_AGENT_DEFAULT_GATEWAY: ${AGENT_DEFAULT_GATEWAY}
+      APIM_GATEWAY_URL: ${APIM_GATEWAY_URL}
+      LLM_API_PATH: ${LLM_API_PATH}
+      MCP_CATALOG_URL: ${MCP_CATALOG_URL}
+      MCP_RECORDS_URL: ${MCP_RECORDS_URL}
+      GATEWAY_AUDIENCE: https://cognitiveservices.azure.com
+      AIGW_GATEWAY_URL: ${AIGW_GATEWAY_URL}
+      AIGW_MCP_CATALOG_URL: ${AIGW_MCP_CATALOG_URL}
+      AIGW_MCP_RECORDS_URL: ${AIGW_MCP_RECORDS_URL}
+      KEY_VAULT_URI: ${KEY_VAULT_URI}
+      AIGW_RUNTIME_KEY_SECRET_NAME: ${AIGW_RUNTIME_KEY_SECRET_NAME}
+      MODEL_DEPLOYMENT_NAME: ${MODEL_DEPLOYMENT_NAME}
+      DOMAIN_PROFILE: ${DOMAIN_PROFILE}
+      DD_AGENT_PROTOCOL: responses
+      DD_AGENT_RUNTIME: foundry-hosted
+      DD_APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
+      FHAGL_USE_FASTAPI_FALLBACK: "1"
+  agent-langgraph:
+    project: ./src/agents/langgraph
+    host: azure.ai.agent
+    language: docker
+    docker:
+      remoteBuild: true
+    kind: hosted
+    name: agent-langgraph
+    description: LangGraph hosted agent that reaches models and tools through the selected gateway.
+    startupCommand: python main.py
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+    env:
+      DD_AGENT_DEFAULT_GATEWAY: ${AGENT_DEFAULT_GATEWAY}
+      APIM_GATEWAY_URL: ${APIM_GATEWAY_URL}
+      LLM_API_PATH: ${LLM_API_PATH}
+      MCP_CATALOG_URL: ${MCP_CATALOG_URL}
+      MCP_RECORDS_URL: ${MCP_RECORDS_URL}
+      GATEWAY_AUDIENCE: https://cognitiveservices.azure.com
+      AIGW_GATEWAY_URL: ${AIGW_GATEWAY_URL}
+      AIGW_MCP_CATALOG_URL: ${AIGW_MCP_CATALOG_URL}
+      AIGW_MCP_RECORDS_URL: ${AIGW_MCP_RECORDS_URL}
+      KEY_VAULT_URI: ${KEY_VAULT_URI}
+      AIGW_RUNTIME_KEY_SECRET_NAME: ${AIGW_RUNTIME_KEY_SECRET_NAME}
+      MODEL_DEPLOYMENT_NAME: ${MODEL_DEPLOYMENT_NAME}
+      DOMAIN_PROFILE: ${DOMAIN_PROFILE}
+      DD_AGENT_PROTOCOL: responses
+      DD_AGENT_RUNTIME: foundry-hosted
+      DD_APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
+      FHAGL_USE_FASTAPI_FALLBACK: "1"
+  catalog-mcp:
+    project: ./src/catalog-mcp
+    host: containerapp
+    language: docker
+    docker:
+      remoteBuild: true
+    environmentVariables:
+      - name: PORT
+        value: "8080"
+      - name: DOMAIN_PROFILE
+        value: ${DOMAIN_PROFILE}
+      - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+        value: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
+  records-api:
+    project: ./src/records-api
+    host: containerapp
+    language: docker
+    docker:
+      remoteBuild: true
+    environmentVariables:
+      - name: PORT
+        value: "8080"
+      - name: DOMAIN_PROFILE
+        value: ${DOMAIN_PROFILE}
+      - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+        value: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
+hooks:
+  preprovision:
+    windows:
+      shell: pwsh
+      run: ./infra/hooks/preprovision.ps1
+      interactive: true
+      continueOnError: false
+  postprovision:
+    windows:
+      shell: pwsh
+      run: ./infra/hooks/postprovision.ps1
+      interactive: true
+      continueOnError: false

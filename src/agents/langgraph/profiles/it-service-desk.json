@@ -1,0 +1,69 @@
+{
+  "profileName": "it-service-desk",
+  "displayName": "IT Service Desk",
+  "agent": {
+    "name": "ServiceDeskGatewayAgent",
+    "description": "Assists support teams with device lookup and ticket coordination through governed tools.",
+    "instructions": "Use governed catalog and records tools for service-desk questions. Search devices when the asset ID is unknown, retrieve tickets by ID when available, and summarize which gateway-governed tool produced the answer. Do not invent assets, tickets, people, or customer-specific facts."
+  },
+  "labels": {
+    "item": "device",
+    "items": "devices",
+    "record": "ticket",
+    "records": "tickets"
+  },
+  "catalogTools": {
+    "list_items": "Browse the device catalog, optionally filtered by category.",
+    "search_items": "Search devices by asset tag, model, category, location, or description.",
+    "get_item": "Get the full device record for a known asset ID.",
+    "check_availability": "Check service readiness for one known asset ID.",
+    "check_availability_batch": "Check service readiness for multiple known asset IDs in one request."
+  },
+  "recordsTools": {
+    "list_records": "List tickets with optional status, priority, assignee, or location filters.",
+    "get_record": "Retrieve one ticket by ID.",
+    "create_record": "Create a new ticket with title, description, priority, location, and affected assets.",
+    "update_record": "Patch mutable fields on an existing ticket."
+  },
+  "seedData": {
+    "items": "src/catalog-mcp/data/profiles/it-service-desk/items.json",
+    "records": "src/records-api/data/profiles/it-service-desk/records.json"
+  },
+  "walkthrough": [
+    {
+      "step": "S1",
+      "segment": "Hosted agents",
+      "prompt": "Check readiness and ask the agent what governed tools it can use.",
+      "expectedTool": null,
+      "assertion": "readiness endpoint returns ok and response identifies catalog or records tools"
+    },
+    {
+      "step": "S2",
+      "segment": "Identity",
+      "prompt": "Invoke through the gateway with an agent token and traceparent.",
+      "expectedTool": null,
+      "assertion": "audit record includes agent_principal and trace_id"
+    },
+    {
+      "step": "S3",
+      "segment": "Tools/MCP",
+      "prompt": "Do we have enough DEV-200 units for today's incident triage desk?",
+      "expectedTool": "check_availability",
+      "assertion": "response includes available quantity and readiness and location"
+    },
+    {
+      "step": "S4",
+      "segment": "Scale/posture",
+      "prompt": "Loop calls until the gateway token-limit policy returns 429.",
+      "expectedTool": null,
+      "assertion": "gateway returns throttling and audit keeps trace id"
+    },
+    {
+      "step": "S5",
+      "segment": "Observability",
+      "prompt": "Run audit query 01 and trace query 04 for the generated trace id.",
+      "expectedTool": null,
+      "assertion": "query output joins agent, tool, backend, decision, and time"
+    }
+  ]
+}

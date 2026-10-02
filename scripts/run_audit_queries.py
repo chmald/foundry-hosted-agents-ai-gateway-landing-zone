@@ -1,0 +1,39 @@
+
+from __future__ import annotations
+import argparse, os
+import json
+import subprocess
+import time
+from pathlib import Path
+from azure.core.credentials import AccessToken
+from azure.identity import DefaultAzureCredential
+from azure.monitor.query import LogsQueryClient
+ROOT=Path(__file__).resolve().parents[1]; QUERY_DIR=ROOT/"infra"/"monitoring"/"queries"
+def load_ids(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+class AzCliCredential:
+    def get_token(self, *scopes, **kwargs):
+        scope=scopes[0] if scopes else "https://api.loganalytics.io/.default"
+        resource=scope[:-len("/.default")] if scope.endswith("/.default") else scope
+        token=subprocess.run(["az","account","get-access-token","--tenant","<TENANT_ID>","--resource",resource,"-o","json"],check=True,capture_output=True,text=True)
+        data=json.loads(token.stdout)
+        return AccessToken(data["accessToken"], int(time.time()) + 3000)
+def main():
+    p=argparse.ArgumentParser(); p.add_argument("--ids",default=str(ROOT/"demo-ids.local.json")); p.add_argument("--workspace-id"); p.add_argument("--query",default="01"); p.add_argument("--trace-id"); a=p.parse_args(); ids=load_ids(Path(a.ids)); wid=a.workspace_id or ids.get("logAnalyticsCustomerId") or os.environ.get("LOG_ANALYTICS_CUSTOMER_ID")
+    if not wid: raise SystemExit("LOG_ANALYTICS_CUSTOMER_ID is required")
+    files=sorted(QUERY_DIR.glob("*.kql")); files=files if a.query=="all" else [x for x in files if x.name.startswith(f"{a.query}-")]
+    if not files: raise SystemExit(f"No KQL files found for query {a.query} under {QUERY_DIR}")
+    try:
+        DefaultAzureCredential().get_token("https://api.loganalytics.io/.default")
+        credential=DefaultAzureCredential()
+    except Exception:
+        credential=AzCliCredential()
+    client=LogsQueryClient(credential)
+    for path in files:
+        query=path.read_text();
+        if path.name.startswith("04-") and a.trace_id: query=query.replace("{traceId}", a.trace_id)
+        print(f"\n## {path.name}"); result=client.query_workspace(wid, query, timespan=None)
+        for table in getattr(result,"tables",[]) or []:
+            print(" | ".join(table.columns)); [print(" | ".join(str(c) for c in row)) for row in table.rows]
+    return 0
+if __name__=="__main__": raise SystemExit(main())

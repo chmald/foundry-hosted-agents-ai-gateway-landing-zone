@@ -1,0 +1,69 @@
+{
+  "profileName": "manufacturing-field-ops",
+  "displayName": "Manufacturing Field Operations",
+  "agent": {
+    "name": "FieldOpsGatewayAgent",
+    "description": "Assists operators with parts availability and work-order coordination through governed tools.",
+    "instructions": "Use governed catalog and records tools for field operations questions. Prefer exact IDs when supplied, search before checking availability when the item ID is unknown, and summarize which gateway-governed tool produced the answer. Do not invent inventory, work orders, people, or customer-specific facts."
+  },
+  "labels": {
+    "item": "part",
+    "items": "parts",
+    "record": "work order",
+    "records": "work orders"
+  },
+  "catalogTools": {
+    "list_items": "Browse the parts catalog, optionally filtered by category.",
+    "search_items": "Search parts by name, category, SKU, supplier, or description.",
+    "get_item": "Get the full catalog record for a known part ID.",
+    "check_availability": "Check current availability for one known part ID.",
+    "check_availability_batch": "Check availability for multiple known part IDs in one request."
+  },
+  "recordsTools": {
+    "list_records": "List work orders with optional status, priority, assignee, or location filters.",
+    "get_record": "Retrieve one work order by ID.",
+    "create_record": "Create a new work order with title, description, priority, location, and parts required.",
+    "update_record": "Patch mutable fields on an existing work order."
+  },
+  "seedData": {
+    "items": "src/catalog-mcp/data/profiles/manufacturing-field-ops/items.json",
+    "records": "src/records-api/data/profiles/manufacturing-field-ops/records.json"
+  },
+  "walkthrough": [
+    {
+      "step": "S1",
+      "segment": "Hosted agents",
+      "prompt": "Check readiness and ask the agent what governed tools it can use.",
+      "expectedTool": null,
+      "assertion": "readiness endpoint returns ok and response identifies catalog or records tools"
+    },
+    {
+      "step": "S2",
+      "segment": "Identity",
+      "prompt": "Invoke through the gateway with an agent token and traceparent.",
+      "expectedTool": null,
+      "assertion": "audit record includes agent_principal and trace_id"
+    },
+    {
+      "step": "S3",
+      "segment": "Tools/MCP",
+      "prompt": "Do we have enough PRT-100 units for today's line inspection?",
+      "expectedTool": "check_availability",
+      "assertion": "response includes available quantity and stock decision"
+    },
+    {
+      "step": "S4",
+      "segment": "Scale/posture",
+      "prompt": "Loop calls until the gateway token-limit policy returns 429.",
+      "expectedTool": null,
+      "assertion": "gateway returns throttling and audit keeps trace id"
+    },
+    {
+      "step": "S5",
+      "segment": "Observability",
+      "prompt": "Run audit query 01 and trace query 04 for the generated trace id.",
+      "expectedTool": null,
+      "assertion": "query output joins agent, tool, backend, decision, and time"
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+<policies>
+    <inbound>
+        <base />
+        <validate-azure-ad-token tenant-id="common" output-token-variable-name="validatedToken" failed-validation-httpcode="401" failed-validation-error-message="Missing or invalid gateway token.">
+            <audiences>
+                <audience>{{gateway-audience}}</audience>
+                <audience>https://cognitiveservices.azure.com</audience>
+            </audiences>
+        </validate-azure-ad-token>
+        <include-fragment fragment-id="identity-headers" />
+        <set-header name="traceparent" exists-action="skip">
+            <value>@(context.Request.Headers.GetValueOrDefault("traceparent", string.Empty))</value>
+        </set-header>
+        <set-variable name="mcpMethod" value="@{
+            try {
+                var body = context.Request.Body?.As&lt;JObject&gt;(preserveContent: true);
+                return body?[&quot;method&quot;]?.ToString() ?? string.Empty;
+            } catch (Exception) { return string.Empty; }
+        }" />
+        <set-variable name="mcpToolName" value="@{
+            try {
+                var body = context.Request.Body?.As&lt;JObject&gt;(preserveContent: true);
+                return body?[&quot;params&quot;]?[&quot;name&quot;]?.ToString() ?? string.Empty;
+            } catch (Exception) { return string.Empty; }
+        }" />
+        <choose>
+            <when condition="@(((string)context.Variables[&quot;mcpMethod&quot;]) == &quot;tools/call&quot;)">
+                <choose>
+                    <when condition="@{
+                        var requested = (string)context.Variables[&quot;mcpToolName&quot;];
+                        var allowed = new [] { &quot;list_items&quot;, &quot;search_items&quot;, &quot;get_item&quot;, &quot;check_availability&quot;, &quot;check_availability_batch&quot;, &quot;list_records&quot;, &quot;get_record&quot;, &quot;create_record&quot;, &quot;update_record&quot; };
+                        return string.IsNullOrWhiteSpace(requested) || !allowed.Contains(requested, StringComparer.OrdinalIgnoreCase);
+                    }">
+                        <return-response>
+                            <set-status code="403" reason="Forbidden" />
+                            <set-header name="Content-Type" exists-action="override">
+                                <value>application/json</value>
+                            </set-header>
+                            <set-body>{"jsonrpc":"2.0","error":{"code":-32601,"message":"Tool is not permitted by the gateway allow-list."},"id":null}</set-body>
+                        </return-response>
+                    </when>
+                </choose>
+            </when>
+        </choose>
+        <rate-limit-by-key calls="120" renewal-period="60" counter-key="@((string)context.Variables[&quot;validatedAzp&quot;])" />
+        <trace source="mcp-api-policy" severity="information">
+            <message>@("MCP inbound request " + (string)context.Variables["mcpMethod"])</message>
+            <metadata name="tool" value="@{
+                var tool = (string)context.Variables[&quot;mcpToolName&quot;];
+                return string.IsNullOrWhiteSpace(tool) ? &quot;none&quot; : tool;
+            }" />
+            <metadata name="agent_appid" value="@((string)context.Variables[&quot;validatedAzp&quot;])" />
+        </trace>
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

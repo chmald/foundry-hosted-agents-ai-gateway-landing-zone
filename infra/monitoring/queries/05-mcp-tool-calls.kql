@@ -1,0 +1,5 @@
+// Question: what MCP tools were called through APIM? Tables: ApiManagementGatewayMCPLog.
+ApiManagementGatewayMCPLog
+| project TimeGenerated, CorrelationId, ServerName, McpServerEndpoint, ToolName, Method, TransportType, SessionId, ClientName, ClientVersion, Error, ErrorType
+| order by TimeGenerated desc
+

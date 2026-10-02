@@ -1,0 +1,47 @@
+<fragment>
+    <set-header name="x-gw-agent-appid" exists-action="delete" />
+    <set-header name="x-gw-agent-oid" exists-action="delete" />
+    <set-header name="x-gw-user-oid" exists-action="delete" />
+    <set-header name="x-gw-actor-facets" exists-action="delete" />
+    <set-header name="x-gw-request-id" exists-action="delete" />
+    <set-variable name="validatedAzp" value="@{
+        var jwt = (Jwt)context.Variables[&quot;validatedToken&quot;];
+        if (jwt == null) { return &quot;unknown&quot;; }
+        if (jwt.Claims.ContainsKey(&quot;azp&quot;)) { return jwt.Claims[&quot;azp&quot;].FirstOrDefault() ?? &quot;unknown&quot;; }
+        if (jwt.Claims.ContainsKey(&quot;appid&quot;)) { return jwt.Claims[&quot;appid&quot;].FirstOrDefault() ?? &quot;unknown&quot;; }
+        return &quot;unknown&quot;;
+    }" />
+    <set-variable name="validatedOid" value="@{
+        var jwt = (Jwt)context.Variables[&quot;validatedToken&quot;];
+        if (jwt == null) { return &quot;unknown&quot;; }
+        if (jwt.Claims.ContainsKey(&quot;oid&quot;)) { return jwt.Claims[&quot;oid&quot;].FirstOrDefault() ?? &quot;unknown&quot;; }
+        return &quot;unknown&quot;;
+    }" />
+    <set-variable name="validatedUserOid" value="@{
+        var jwt = (Jwt)context.Variables[&quot;validatedToken&quot;];
+        if (jwt == null) { return &quot;&quot;; }
+        if (jwt.Claims.ContainsKey(&quot;sub&quot;) &amp;&amp; jwt.Claims.ContainsKey(&quot;scp&quot;)) { return jwt.Claims[&quot;oid&quot;].FirstOrDefault() ?? &quot;&quot;; }
+        return &quot;&quot;;
+    }" />
+    <set-variable name="validatedActorFacets" value="@{
+        var jwt = (Jwt)context.Variables[&quot;validatedToken&quot;];
+        if (jwt == null || !jwt.Claims.ContainsKey(&quot;xms_act_fct&quot;)) { return &quot;&quot;; }
+        return string.Join(&quot;,&quot;, jwt.Claims[&quot;xms_act_fct&quot;]);
+    }" />
+    <set-header name="x-gw-agent-appid" exists-action="override">
+        <value>@((string)context.Variables["validatedAzp"])</value>
+    </set-header>
+    <set-header name="x-gw-agent-oid" exists-action="override">
+        <value>@((string)context.Variables["validatedOid"])</value>
+    </set-header>
+    <set-header name="x-gw-user-oid" exists-action="override">
+        <value>@((string)context.Variables["validatedUserOid"])</value>
+    </set-header>
+    <set-header name="x-gw-actor-facets" exists-action="override">
+        <value>@((string)context.Variables["validatedActorFacets"])</value>
+    </set-header>
+    <set-header name="x-gw-request-id" exists-action="override">
+        <value>@(context.RequestId.ToString())</value>
+    </set-header>
+</fragment>
+

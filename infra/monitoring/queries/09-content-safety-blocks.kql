@@ -1,0 +1,7 @@
+// Question: which requests were blocked by gateway or model content-safety controls? Tables: ApiManagementGatewayLogs, ApiManagementGatewayLlmLog, AppTraces.
+union isfuzzy=true
+    (ApiManagementGatewayLogs | where ErrorMessage has_any ("content safety", "content_filter", "jailbreak", "blocked") | project TimeGenerated, Source="APIM", CorrelationId, Detail=ErrorMessage, ApiId, ResponseCode),
+    (ApiManagementGatewayLlmLog | where tostring(PromptMessages) has_any ("content_filter", "blocked") or tostring(CompletionMessages) has_any ("content_filter", "blocked") | project TimeGenerated, Source="LLM", CorrelationId, Detail=strcat("tokens=", TotalTokens), ApiId="", ResponseCode=int(null)),
+    (AppTraces | where Message has_any ("content safety", "content_filter", "blocked") | project TimeGenerated, Source="AppTraces", CorrelationId=tostring(Properties.gateway_request_id), Detail=Message, ApiId="", ResponseCode=int(null))
+| order by TimeGenerated desc
+

@@ -1,0 +1,20 @@
+// Question: which gateway requests were denied or throttled? Tables: ApiManagementGatewayLogs, ApiManagementGatewayMCPLog, ContainerAppConsoleLogs_CL, AppTraces.
+let AuditDenied =
+    union isfuzzy=true
+        (ContainerAppConsoleLogs_CL | project TimeGenerated, RawLog=tostring(Log_s)),
+        (AppTraces | project TimeGenerated, RawLog=tostring(Message))
+    | where RawLog has '"event":"tool_audit"'
+    | extend audit=parse_json(RawLog)
+    | where tostring(audit.decision) == "denied"
+    | project TimeGenerated, Source="tool_audit", CorrelationId=tostring(audit.gateway_request_id), Status=toint(audit.status_code), Reason=tostring(audit.reason), Tool=tostring(audit.tool);
+let GatewayDenied =
+    ApiManagementGatewayLogs
+    | extend ErrorText=tostring(column_ifexists("ErrorMessage", "")), BackendMessage=tostring(column_ifexists("BackendResponseMessage", ""))
+    | where ResponseCode in (401, 403, 429) or BackendResponseCode in (401, 403, 429)
+    | project TimeGenerated, Source="apim", CorrelationId, Status=coalesce(ResponseCode, BackendResponseCode), Reason=coalesce(ErrorText, BackendMessage), Tool="";
+let McpDenied =
+    ApiManagementGatewayMCPLog
+    | where Error has_any ("Forbidden", "throttl", "Unauthorized") or ErrorType has_any ("Forbidden", "Throttled", "Unauthorized")
+    | project TimeGenerated, Source="mcp", CorrelationId, Status=int(null), Reason=Error, Tool=ToolName;
+union AuditDenied, GatewayDenied, McpDenied
+| order by TimeGenerated desc

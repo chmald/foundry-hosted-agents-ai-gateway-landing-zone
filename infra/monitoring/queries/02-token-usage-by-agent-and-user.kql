@@ -1,0 +1,11 @@
+// Question: how many LLM tokens were consumed by agent and delegated user? Tables: ApiManagementGatewayLlmLog, AppTraces.
+let AgentContext =
+    AppTraces
+    | where Message has "agent_appid" or tostring(Properties.agent_appid) != ""
+    | project CorrelationId=tostring(Properties.gateway_request_id), agent_appid=tostring(Properties.agent_appid), user_oid=tostring(Properties.user_oid);
+ApiManagementGatewayLlmLog
+| summarize PromptTokens=sum(PromptTokens), CompletionTokens=sum(CompletionTokens), TotalTokens=sum(TotalTokens), Requests=count() by CorrelationId, ModelName
+| join kind=leftouter AgentContext on CorrelationId
+| summarize Requests=sum(Requests), PromptTokens=sum(PromptTokens), CompletionTokens=sum(CompletionTokens), TotalTokens=sum(TotalTokens) by agent_appid, user_oid, ModelName
+| order by TotalTokens desc
+

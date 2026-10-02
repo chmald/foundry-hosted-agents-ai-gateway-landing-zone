@@ -1,0 +1,13 @@
+agent-framework-core==1.20.0
+agent-framework-openai==1.15.0
+agent-framework-foundry-hosting==1.0.0b261002
+mcp==1.30.0
+fastapi==0.142.2
+uvicorn==0.54.0
+httpx==0.28.1
+azure-identity==1.25.3
+azure-keyvault-secrets==4.11.2
+azure-monitor-opentelemetry==1.8.10
+opentelemetry-api==1.44.0
+opentelemetry-sdk==1.44.0
+opentelemetry-instrumentation-httpx==0.65b0

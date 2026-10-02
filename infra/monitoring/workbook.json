@@ -1,0 +1,99 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# Hosted agents gateway audit workbook\nCross-system workbook for token usage, MCP tools, denial/throttle events, latency, LLM logs, and trace lookup."
+      },
+      "name": "title"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "ApiManagementGatewayLlmLog | summarize TotalTokens=sum(TotalTokens) by bin(TimeGenerated, 1h), ModelName | render timechart",
+        "size": 0,
+        "title": "Token usage by model / agent dimension",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "token-usage"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let TierGenAi = union isfuzzy=true AppDependencies, AppTraces, AppRequests | extend props=todynamic(Properties) | where bag_keys(props) has_any ('gen_ai.request.model','gen_ai.response.model','gen_ai.operation.name','gen_ai.token.type') or tostring(Name) has 'gen_ai' or tostring(Message) has 'gen_ai' | extend Gateway='aigateway-tier', Model=coalesce(tostring(props['gen_ai.request.model']), tostring(props['gen_ai.response.model']), 'verify_after_live_deploy'), Tokens=todouble(coalesce(props['gen_ai.usage.total_tokens'], props['token_count'], 0)); let StandardV2 = ApiManagementGatewayLlmLog | extend Gateway='apim-standard-v2', Model=tostring(ModelName), Tokens=todouble(TotalTokens); union isfuzzy=true TierGenAi, StandardV2 | summarize Tokens=sum(Tokens), Requests=count() by Gateway, Model, bin(TimeGenerated, 1h) | render timechart",
+        "size": 0,
+        "title": "Standard v2 vs AI Gateway tier token usage",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "standard-v2-vs-aigw-tier"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "ApiManagementGatewayMCPLog | summarize Calls=count() by ToolName, ServerName | order by Calls desc",
+        "size": 0,
+        "title": "Tool calls by server and tool",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "tool-calls"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union isfuzzy=true ApiManagementGatewayLogs, ApiManagementGatewayMCPLog | where ResponseCode in (401,403,429) or Error has_any ('Forbidden','throttl') | summarize Count=count() by bin(TimeGenerated, 15m), Type | render timechart",
+        "size": 0,
+        "title": "Denied and throttled",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "denied-throttled"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "ApiManagementGatewayLogs | summarize P95=percentile(DurationMs, 95), Failures=countif(ResponseCode between (500 .. 599)) by bin(TimeGenerated, 15m), ApiId | render timechart",
+        "size": 0,
+        "title": "Gateway latency and 5xx",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "latency-5xx"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "ApiManagementGatewayLlmLog | project TimeGenerated, CorrelationId, ModelName, PromptTokens, CompletionTokens, TotalTokens, PromptMessages, CompletionMessages | take 25",
+        "size": 0,
+        "title": "LLM log sample",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "llm-sample"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let traceId = '{traceId}'; union isfuzzy=true AppRequests, AppDependencies, AppTraces, ApiManagementGatewayLogs, ApiManagementGatewayMCPLog, ApiManagementGatewayLlmLog | where tostring(OperationId) == traceId or tostring(CorrelationId) == traceId or tostring(Properties.trace_id) == traceId | order by TimeGenerated asc",
+        "size": 0,
+        "title": "End-to-end trace lookup",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "trace-lookup"
+    }
+  ],
+  "fallbackResourceIds": [],
+  "fromTemplateId": "hosted-agents-gateway-audit",
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}

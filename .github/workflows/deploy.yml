@@ -1,0 +1,50 @@
+name: Deploy demo
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: azd environment name
+        required: true
+        default: demo
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install azd
+        uses: Azure/setup-azd@v2
+
+      - name: Install azd hosted-agent extension
+        run: azd extension install azure.ai.agents
+
+      - name: Configure azd environment
+        run: |
+          azd env new "${{ inputs.environment }}" --no-prompt || azd env select "${{ inputs.environment }}"
+          azd env set AZURE_TENANT_ID "${{ secrets.AZURE_TENANT_ID }}"
+          azd env set AZURE_SUBSCRIPTION_ID "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          azd env set AZURE_LOCATION "${{ vars.AZURE_LOCATION || 'eastus2' }}"
+          azd env set AI_GATEWAY_MODE "${{ vars.AI_GATEWAY_MODE || 'apimv2' }}"
+          azd env set AI_GATEWAY_TIER_LOCATION "${{ vars.AI_GATEWAY_TIER_LOCATION || 'eastus2' }}"
+          azd env set AIGW_REQUEST_LIMIT_RPM "${{ vars.AIGW_REQUEST_LIMIT_RPM || '120' }}"
+          azd env set AIGW_RUNTIME_KEY_SECRET_NAME "${{ vars.AIGW_RUNTIME_KEY_SECRET_NAME || 'aigw-runtime-key' }}"
+          azd env set APIM_PUBLISHER_EMAIL "${{ vars.APIM_PUBLISHER_EMAIL || 'demo@example.com' }}"
+          azd env set APIM_PUBLISHER_NAME "${{ vars.APIM_PUBLISHER_NAME || 'Demo Publisher' }}"
+          azd env set GATEWAY_APP_CLIENT_ID "${{ vars.GATEWAY_APP_CLIENT_ID }}"
+
+      - name: Provision and deploy
+        run: azd up --no-prompt

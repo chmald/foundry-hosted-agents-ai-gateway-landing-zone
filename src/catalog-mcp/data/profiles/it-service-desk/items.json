@@ -1,0 +1,38 @@
+[
+  {
+    "id": "DEV-200",
+    "name": "Shared incident-room laptop",
+    "description": "Managed laptop reserved for service incident triage.",
+    "category": "endpoint",
+    "sku": "END-LTP-200",
+    "unit_price": 1299.0,
+    "available_quantity": 3,
+    "min_quantity": 2,
+    "location": "Service desk storage",
+    "supplier": "Workplace Devices"
+  },
+  {
+    "id": "DEV-201",
+    "name": "Conference room camera",
+    "description": "USB conference camera for huddle rooms and temporary collaboration spaces.",
+    "category": "collaboration",
+    "sku": "COL-CAM-201",
+    "unit_price": 219.0,
+    "available_quantity": 1,
+    "min_quantity": 2,
+    "location": "AV cabinet",
+    "supplier": "Collaboration Hardware"
+  },
+  {
+    "id": "DEV-202",
+    "name": "Network access switch",
+    "description": "Compact managed access switch for temporary desks or lab benches.",
+    "category": "network",
+    "sku": "NET-SW-202",
+    "unit_price": 489.0,
+    "available_quantity": 5,
+    "min_quantity": 2,
+    "location": "Network shelf",
+    "supplier": "Network Components"
+  }
+]

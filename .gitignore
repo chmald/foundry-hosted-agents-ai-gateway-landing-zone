@@ -1,0 +1,55 @@
+# Local deployment state
+.azure/
+demo-ids.local.json
+*.local.*
+
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
+*.cer
+*.sp-secret.json
+secrets.json
+*secret*.json
+
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node / frontend tooling
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editors and OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs and generated outputs
+*.log
+*.tmp
+*.bak
+
+# Bicep / ARM generated JSON outputs
+infra/*.json
+!infra/azd.parameters.json
+!infra/monitoring/workbook.json
+
+# Azure / container local files
+kubeconfig*
+*.tar
+*.tgz

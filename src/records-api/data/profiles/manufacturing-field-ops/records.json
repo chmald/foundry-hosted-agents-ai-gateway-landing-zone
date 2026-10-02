@@ -1,0 +1,38 @@
+[
+  {
+    "id": "WO-100",
+    "title": "Inspect packaging line vibration alert",
+    "description": "Verify sensor readings and inspect bearing condition on packaging line drive.",
+    "status": "open",
+    "priority": "high",
+    "assigned_to": "Field technician",
+    "location": "Plant 1 - Packaging",
+    "items_required": [
+      {
+        "item_id": "PRT-100",
+        "quantity": 2
+      }
+    ],
+    "created_at": "2026-09-29T14:00:00Z",
+    "updated_at": "2026-09-29T14:00:00Z",
+    "due_date": "2026-10-02T17:00:00Z"
+  },
+  {
+    "id": "WO-101",
+    "title": "Replace hydraulic pump seal",
+    "description": "Replace leaking seal set and validate pressure recovery after maintenance.",
+    "status": "in_progress",
+    "priority": "medium",
+    "assigned_to": "Maintenance lead",
+    "location": "Plant 1 - Press cell",
+    "items_required": [
+      {
+        "item_id": "PRT-101",
+        "quantity": 1
+      }
+    ],
+    "created_at": "2026-09-28T09:30:00Z",
+    "updated_at": "2026-09-30T11:15:00Z",
+    "due_date": "2026-10-03T20:00:00Z"
+  }
+]
