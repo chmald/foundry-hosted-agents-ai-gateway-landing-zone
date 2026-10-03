@@ -1,4 +1,6 @@
 // Microsoft Foundry account/project, model deployment, ACR, App Insights connection, and project pull permissions.
+// When networkIsolation is true the account is created with agent-subnet network injection and public access disabled;
+// BYO connections + capability host are added by foundry-agent-byo.bicep once private endpoints exist.
 param location string
 param tags object = {}
 param aiServicesName string
@@ -15,9 +17,8 @@ param appInsightsId string
 param appInsightsConnectionString string
 param containerRegistryName string
 param networkIsolation bool = false
-param byoCosmosDbResourceId string = ''
-param byoStorageAccountResourceId string = ''
-param byoSearchServiceResourceId string = ''
+@description('Delegated agent subnet resource id (Microsoft.App/environments). Required when networkIsolation is true; hosted agents need network injection set when the account is first created.')
+param agentSubnetId string = ''
 
 resource aiServices 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
   name: aiServicesName
@@ -36,9 +37,19 @@ resource aiServices 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
     disableLocalAuth: true
     publicNetworkAccess: networkIsolation ? 'Disabled' : 'Enabled'
   }, networkIsolation ? {
-    azureCosmosDBAccountResourceId: byoCosmosDbResourceId
-    azureStorageAccountResourceId: byoStorageAccountResourceId
-    aiSearchResourceId: byoSearchServiceResourceId
+    networkAcls: {
+      defaultAction: 'Deny'
+      bypass: 'AzureServices'
+      ipRules: []
+      virtualNetworkRules: []
+    }
+    networkInjections: [
+      {
+        scenario: 'agent'
+        subnetArmId: agentSubnetId
+        useMicrosoftManagedNetwork: false
+      }
+    ]
   } : {})
 }
 
@@ -80,11 +91,13 @@ resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   location: location
   tags: tags
   sku: {
-    name: 'Premium'
+    // Private endpoints require Premium; Standard is enough (and cheaper) when the registry stays public.
+    name: networkIsolation ? 'Premium' : 'Standard'
   }
   properties: {
     adminUserEnabled: false
     publicNetworkAccess: networkIsolation ? 'Disabled' : 'Enabled'
+    networkRuleBypassOptions: 'AzureServices'
     zoneRedundancy: 'Disabled'
   }
 }

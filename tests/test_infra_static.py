@@ -8,3 +8,28 @@ def test_azd_parameters_are_quoted_when_infra_present():
     data=json.loads(params.read_text())
     for name,value in data.get("parameters",{}).items(): assert isinstance(value.get("value"), str), f"{name} value must be a quoted azd substitution"
     assert "targetScope = 'subscription'" in azd_bicep.read_text()
+
+
+def _modules():
+    return ROOT/"infra"/"modules"
+
+
+def test_isolation_creates_private_endpoints_and_dns_zones():
+    main=ROOT/"infra"/"main.bicep"; dns=_modules()/"private-dns.bicep"
+    if not main.exists() or not dns.exists(): pytest.skip("isolation modules not present")
+    text=main.read_text(); zones=dns.read_text()
+    for zone in ["privatelink.cognitiveservices.azure.com","privatelink.openai.azure.com","privatelink.services.ai.azure.com","privatelink.vaultcore.azure.net","privatelink.azurecr.io","privatelink.azure-api.net","privatelink.documents.azure.com","privatelink.search.windows.net"]:
+        assert zone in zones, zone
+    assert "privatelink.blob." in zones
+    for group in ["groupId: 'account'","groupId: 'vault'","groupId: 'registry'","groupId: 'Gateway'"]:
+        assert group in text, group
+    assert "agentSubnetId: networkIsolation" in text
+
+
+def test_isolation_binds_agent_subnet_and_disables_public_access():
+    foundry=(_modules()/"foundry.bicep").read_text()
+    assert "networkInjections" in foundry and "scenario: 'agent'" in foundry
+    assert "networkIsolation ? 'Premium' : 'Standard'" in foundry
+    assert "networkIsolation ? 'Disabled' : 'Enabled'" in (_modules()/"keyvault.bicep").read_text()
+    assert "Microsoft.App/environments" in (_modules()/"network.bicep").read_text()
+    assert "Microsoft.Web/serverFarms" in (_modules()/"network.bicep").read_text()

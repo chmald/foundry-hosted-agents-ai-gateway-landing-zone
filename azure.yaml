@@ -29,7 +29,7 @@ services:
       - protocol: responses
         version: 2.0.0
     env:
-      DD_AGENT_DEFAULT_GATEWAY: ${AGENT_DEFAULT_GATEWAY}
+      HOSTED_DEFAULT_GATEWAY: ${AGENT_DEFAULT_GATEWAY}
       APIM_GATEWAY_URL: ${APIM_GATEWAY_URL}
       LLM_API_PATH: ${LLM_API_PATH}
       MCP_CATALOG_URL: ${MCP_CATALOG_URL}
@@ -42,10 +42,21 @@ services:
       AIGW_RUNTIME_KEY_SECRET_NAME: ${AIGW_RUNTIME_KEY_SECRET_NAME}
       MODEL_DEPLOYMENT_NAME: ${MODEL_DEPLOYMENT_NAME}
       DOMAIN_PROFILE: ${DOMAIN_PROFILE}
-      DD_AGENT_PROTOCOL: responses
-      DD_AGENT_RUNTIME: foundry-hosted
-      DD_APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
-      FHAGL_USE_FASTAPI_FALLBACK: "1"
+      HOSTED_PROTOCOL: responses
+      HOSTED_RUNTIME: foundry-hosted
+      # AIGW_KEY_DELIVERY=keyvault (default) reads the runtime key from Key Vault. AIGW_RUNTIME_KEY is only populated by
+      # postprovision when AIGW_KEY_DELIVERY=env, an explicit demo-only opt-in (see docs); otherwise it is empty.
+      AIGW_KEY_DELIVERY: ${AIGW_KEY_DELIVERY}
+      AIGW_RUNTIME_KEY: ${AIGW_RUNTIME_KEY}
+    hooks:
+      postdeploy:
+        # Grants the deployed agent's instance identity Key Vault Secrets User; cwd is the service path.
+        shell: pwsh
+        interactive: true
+        continueOnError: false
+        run: |
+          & (Join-Path (Resolve-Path ../../..).Path 'infra/hooks/postdeploy-agents.ps1') -AgentName agent-maf
+          exit $LASTEXITCODE
   agent-langgraph:
     project: ./src/agents/langgraph
     host: azure.ai.agent
@@ -64,7 +75,7 @@ services:
       - protocol: responses
         version: 2.0.0
     env:
-      DD_AGENT_DEFAULT_GATEWAY: ${AGENT_DEFAULT_GATEWAY}
+      HOSTED_DEFAULT_GATEWAY: ${AGENT_DEFAULT_GATEWAY}
       APIM_GATEWAY_URL: ${APIM_GATEWAY_URL}
       LLM_API_PATH: ${LLM_API_PATH}
       MCP_CATALOG_URL: ${MCP_CATALOG_URL}
@@ -77,10 +88,21 @@ services:
       AIGW_RUNTIME_KEY_SECRET_NAME: ${AIGW_RUNTIME_KEY_SECRET_NAME}
       MODEL_DEPLOYMENT_NAME: ${MODEL_DEPLOYMENT_NAME}
       DOMAIN_PROFILE: ${DOMAIN_PROFILE}
-      DD_AGENT_PROTOCOL: responses
-      DD_AGENT_RUNTIME: foundry-hosted
-      DD_APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
-      FHAGL_USE_FASTAPI_FALLBACK: "1"
+      HOSTED_PROTOCOL: responses
+      HOSTED_RUNTIME: foundry-hosted
+      # AIGW_KEY_DELIVERY=keyvault (default) reads the runtime key from Key Vault. AIGW_RUNTIME_KEY is only populated by
+      # postprovision when AIGW_KEY_DELIVERY=env, an explicit demo-only opt-in (see docs); otherwise it is empty.
+      AIGW_KEY_DELIVERY: ${AIGW_KEY_DELIVERY}
+      AIGW_RUNTIME_KEY: ${AIGW_RUNTIME_KEY}
+    hooks:
+      postdeploy:
+        # Grants the deployed agent's instance identity Key Vault Secrets User; cwd is the service path.
+        shell: pwsh
+        interactive: true
+        continueOnError: false
+        run: |
+          & (Join-Path (Resolve-Path ../../..).Path 'infra/hooks/postdeploy-agents.ps1') -AgentName agent-langgraph
+          exit $LASTEXITCODE
   catalog-mcp:
     project: ./src/catalog-mcp
     host: containerapp

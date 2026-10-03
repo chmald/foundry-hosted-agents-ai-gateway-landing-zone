@@ -22,6 +22,10 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     enabledForDiskEncryption: false
     enabledForTemplateDeployment: false
     publicNetworkAccess: networkIsolation ? 'Disabled' : 'Enabled'
+    networkAcls: networkIsolation ? {
+      defaultAction: 'Deny'
+      bypass: 'AzureServices'
+    } : null
   }
 }
 

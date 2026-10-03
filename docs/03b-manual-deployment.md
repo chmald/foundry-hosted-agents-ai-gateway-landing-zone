@@ -15,9 +15,10 @@
   <img src="./assets/badges/diy.svg" alt="path: manual / DIY">
   <img src="./assets/badges/public-preview.svg" alt="AI Gateway tier: public preview">
   <img src="./assets/badges/regions-aigw.svg" alt="regions: East US 2 and Sweden Central">
+  <img src="./assets/badges/static-only.svg" alt="validation: manual path not live-run">
 </p>
 
-Manual provisioning path for workshops or constrained environments where `azd up` is not allowed. It creates the same resource classes as the IaC path, but the AI Gateway tier preview is currently portal-first for many operators, so expect extra validation time.
+Manual provisioning path for workshops or constrained environments where `azd up` is not allowed. It creates the same resource classes as the IaC path, but the AI Gateway tier preview is currently portal-first for many operators, so expect extra validation time. The v1.2 live run used `azd up`; this manual path is **not** live-validated.
 
 ## At a glance
 
@@ -29,7 +30,11 @@ Manual provisioning path for workshops or constrained environments where `azd up
 | <img src="./assets/icons/cost-management.svg" width="24" alt=""> | **Trade-off** | Slower and more drift-prone than `azd up` - see the [time delta](#time-delta-manual-vs-azd) |
 
 > [!NOTE]
-> Complete [02 - Prerequisites](./02-prerequisites.md) first - the same RBAC, region, model, and quota gates apply.
+> Complete [02 - Prerequisites](./02-prerequisites.md) first - the same RBAC, region, model, and quota gates apply, including the `AIGatewayPreview` feature registration for the AI Gateway tier.
+
+[![Manual deployment steps](./assets/manual-deployment-steps.png)](./assets/manual-deployment-steps.png)
+
+<sub>Editable source: [`assets/manual-deployment-steps.drawio`](./assets/manual-deployment-steps.drawio) - regenerate with `python scripts/export_diagrams.py docs/assets`.</sub>
 
 ## When to use this path
 
@@ -60,7 +65,7 @@ az account show --query "{tenant:tenantId, subscription:id, subName:name, user:u
 | <img src="./assets/icons/api-management.svg" width="20" alt=""> | **APIM v2** | Create Standard v2 / Premium v2 APIM, APIs, policies, diagnostics. | Import `infra/policies/*`; validate the Entra audience. |
 | <img src="./assets/icons/ai-gateway.svg" width="20" alt=""> | **AI Gateway tier** | `https://ai.gateway.azure.com` → Create gateway → supported region → import Foundry model → add MCP/OpenAPI tool servers → create runtime key. | East US 2 or Sweden Central; store the runtime key in Key Vault as `aigw-runtime-key`. |
 | <img src="./assets/icons/container-apps.svg" width="20" alt=""> | **Container Apps** | Deploy `catalog-mcp` and `records-api`. | Use port 8080 for backends. |
-| <img src="./assets/icons/foundry-agent-service.svg" width="20" alt=""> | **Hosted agents** | Prefer `azd deploy agent-maf agent-langgraph` even if infra was manual. | If fully manual, use the hosted-agent manifests under `src/agents/maf` and `src/agents/langgraph`. |
+| <img src="./assets/icons/foundry-agent-service.svg" width="20" alt=""> | **Hosted agents** | Prefer `azd deploy agent-maf agent-langgraph` even if infra was manual. | If fully manual, use the hosted-agent manifests under `src/agents/maf` and `src/agents/langgraph`; grant the instance identity Key Vault access yourself (the `postdeploy` hook only runs under azd). |
 | <img src="./assets/icons/code.svg" width="20" alt=""> | **Profiles** | Run `scripts/sync-agent-profiles.ps1` before container builds when root profile JSON changes. | Each hosted-agent Docker context contains a copied `profiles/` folder. |
 
 ## Portal walkthrough per resource
@@ -95,7 +100,7 @@ Each card names the portal blade and the value to enter. Resource naming guidanc
 | Step | Action | Checkpoint |
 |---|---|---|
 | 4.1 | <img src="./assets/icons/key-vault.svg" width="18" alt=""> **Key Vault** › Create with Azure RBAC authorization. | - [ ] Vault exists |
-| 4.2 | <img src="./assets/icons/managed-identity.svg" width="18" alt=""> Grant the Foundry project identity **Key Vault Secrets User**. | - [ ] Assignment visible |
+| 4.2 | <img src="./assets/icons/managed-identity.svg" width="18" alt=""> After the agents are deployed, grant each hosted agent's **instance identity** (`azd ai agent show <agent> --output json` → `instance_identity.principal_id`) **Key Vault Secrets User**. The Foundry project identity is not the runtime identity. | - [ ] Assignment visible for both agents |
 | 4.3 | <img src="./assets/icons/app-registrations.svg" width="18" alt=""> **Entra ID › App registrations** › create the gateway app (needed for APIM v2 token validation). | - [ ] App (client) ID recorded |
 
 ### <img src="./assets/icons/api-management.svg" width="28" alt=""> Step 5 - API Management v2
@@ -129,7 +134,7 @@ Each card names the portal blade and the value to enter. Resource naming guidanc
 <img src="./assets/icons/ai-gateway.svg" width="40" alt="AI Gateway">
 
 > [!IMPORTANT]
-> The AI Gateway tier is **public preview** (no SLA, pricing TBA). Portal labels may change; follow the intent of each step.
+> The AI Gateway tier is **public preview** (no SLA, pricing TBA). Register the `AIGatewayPreview` feature first ([02](./02-prerequisites.md#register-the-ai-gateway-preview-feature)). Portal labels may change; follow the intent of each step. The model alias name must equal the `model` your agents send (`chat`), and the provider model name must equal the Foundry deployment name.
 
 | Step | | Action | Checkpoint |
 |---|---|---|---|
@@ -139,7 +144,7 @@ Each card names the portal blade and the value to enter. Resource naming guidanc
 | **4** | <img src="./assets/icons/toolbox.svg" width="24" alt=""> | Add MCP servers: one remote MCP backend for `catalog-mcp`, one OpenAPI-generated tool server for `records-api`. | - [ ] Two tool servers listed |
 | **5** | <img src="./assets/icons/key-vault.svg" width="24" alt=""> | Create runtime access key `agents`; copy it **once** and store it in Key Vault secret `aigw-runtime-key`. | - [ ] Secret present; value not recorded anywhere else |
 | **6** | <img src="./assets/icons/content-safety.svg" width="24" alt=""> | Add policy cards for content safety, request rate limit, and token rate limit (an IP filter card also exists). | - [ ] Cards saved |
-| **7** | <img src="./assets/icons/application-insights.svg" width="24" alt=""> | Configure the telemetry exporter to the shared Application Insights resource. | - [ ] Query `11` returns rows after traffic |
+| **7** | <img src="./assets/icons/application-insights.svg" width="24" alt=""> | Connect the shared Application Insights resource so the tier's request telemetry lands in `AppRequests`. | - [ ] Query `11` returns rows after traffic |
 
 > [!WARNING]
 > The runtime key is gateway-scoped: one key reaches every model and tool on the gateway. Create separate keys per app or environment, and never paste the value into docs, tickets, or logs.
@@ -160,10 +165,10 @@ Learn: [AI gateway in Azure API Management](https://learn.microsoft.com/en-us/az
 | <img src="./assets/icons/azure-devops.svg" width="20" alt=""> | Environment setup + auth | Minutes | Minutes |
 | <img src="./assets/icons/log-analytics.svg" width="20" alt=""> | Monitoring plane + query pack | Automatic | Manual import per query/workbook |
 | <img src="./assets/icons/api-management.svg" width="20" alt=""> | APIM v2 + policies | Automatic (APIM v2 provisioning dominates wall-clock time) | Longer - policy and API paste per API |
-| <img src="./assets/icons/ai-gateway.svg" width="20" alt=""> | AI Gateway tier | Bicep + runtime-key hook | Portal-first; extra validation time |
+| <img src="./assets/icons/ai-gateway.svg" width="20" alt=""> | AI Gateway tier | Bicep + runtime-key hook (about 3 minutes to provision) | Portal-first; extra validation time |
 | <img src="./assets/icons/container-apps.svg" width="20" alt=""> | Container Apps + images | Automatic (`remoteBuild`) | Build and deploy each app |
 | <img src="./assets/icons/foundry-agent-service.svg" width="20" alt=""> | Hosted agents | `azd deploy agent-maf agent-langgraph` | Same command recommended |
-| <img src="./assets/icons/resource-group.svg" width="20" alt=""> | Teardown | `azd down --purge` | Delete resources and purge soft-deleted names by hand |
+| <img src="./assets/icons/resource-group.svg" width="20" alt=""> | Teardown | `azd down --purge --force` (about 36 minutes live) | Delete resources and purge soft-deleted names by hand |
 | | **Overall** | **Fastest, repeatable** | **Several times longer; drift-prone** |
 
 ## Continue with testing

@@ -17,6 +17,20 @@ if (Test-AiGatewayTierEnabled -Mode $mode) {
 }
 Assert-AllowedValue -Name "APIM_SKU" -Value $sku -Allowed @("StandardV2", "PremiumV2")
 Assert-AllowedValue -Name "NETWORK_ISOLATION" -Value $network -Allowed @("true", "false")
+$keyDelivery = Get-AiGatewayKeyDelivery
+if ([string]::IsNullOrWhiteSpace((Get-EnvValue -Name "AIGW_KEY_DELIVERY"))) {
+    Set-AzdEnvironmentValue -Name "AIGW_KEY_DELIVERY" -Value $keyDelivery
+}
+if ($keyDelivery -eq "env") {
+    Write-Host "AIGW_KEY_DELIVERY=env: the AI Gateway runtime key will be passed to hosted agents as a plaintext env var (AIGW_RUNTIME_KEY). Demo-only compromise for subscriptions where policy keeps Key Vault unreachable from the agent runtime; prefer 'keyvault' (default) and NETWORK_ISOLATION=true." -ForegroundColor Yellow
+}
+if ($network -eq "true") {
+    Write-Host "NETWORK_ISOLATION=true: private endpoints + private DNS are created and public access is disabled on Foundry/Key Vault/ACR/Cosmos/Storage/Search." -ForegroundColor Cyan
+    Write-Host "  Run 'azd deploy' / data-plane steps from inside the VNet (runner, jump box, VPN). ACR switches to Premium (cost)." -ForegroundColor Cyan
+    if ((Test-AiGatewayTierEnabled -Mode $mode) -and $aiGatewayTierLocation -ne $location) {
+        Write-Host "WARNING: AI Gateway tier region '$aiGatewayTierLocation' differs from AZURE_LOCATION '$location'; outbound VNet integration is skipped, so the tier cannot reach the private Foundry account. Use the same region (eastus2 or swedencentral)." -ForegroundColor Yellow
+    }
+}
 
 $gatewayClientId = Ensure-GatewayAppRegistration -EnvironmentName $envName
 Write-Host "Gateway application client id: $gatewayClientId"

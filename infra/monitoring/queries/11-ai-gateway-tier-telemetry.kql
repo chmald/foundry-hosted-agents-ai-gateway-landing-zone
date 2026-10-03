@@ -1,24 +1,22 @@
-// Question: how does preview AI Gateway tier OpenTelemetry GenAI telemetry compare with Standard v2 APIM LLM logs? Tables: AppDependencies, AppTraces, AppRequests, ApiManagementGatewayLlmLog. Columns marked verify_after_live_deploy require live AI Gateway tier telemetry validation.
-let TierGenAi =
-    union isfuzzy=true AppDependencies, AppTraces, AppRequests
-    | extend props = todynamic(Properties)
-    | where bag_keys(props) has_any ("gen_ai.request.model", "gen_ai.response.model", "gen_ai.operation.name", "gen_ai.token.type")
-        or tostring(Name) has "gen_ai"
-        or tostring(Message) has "gen_ai"
-    | extend Gateway = "aigateway-tier",
-             Model = coalesce(tostring(props["gen_ai.request.model"]), tostring(props["gen_ai.response.model"]), tostring(props["gen_ai.model"]), "verify_after_live_deploy"),
-             Operation = coalesce(tostring(props["gen_ai.operation.name"]), tostring(props["gen_ai.operation"]), "verify_after_live_deploy"),
-             TokenType = coalesce(tostring(props["gen_ai.token.type"]), tostring(props["gen_ai.usage.token_type"]), "verify_after_live_deploy"),
-             TokenCount = todouble(coalesce(props["gen_ai.usage.input_tokens"], props["gen_ai.usage.output_tokens"], props["gen_ai.usage.total_tokens"], props["token_count"], 0)),
-             CorrelationId = coalesce(tostring(OperationId), tostring(props["trace_id"]), tostring(props["correlation_id"]));
+// Question: how does AI Gateway tier telemetry compare with Standard v2 APIM LLM logs and the hosted-agent GenAI spans? Tables: AppRequests (AI Gateway tier built-in App Insights telemetry, AppRoleName "aigw-*"; tokens in Measurements gen_ai.usage.*), ApiManagementGatewayMCPLog (AI Gateway tier MCP log), ApiManagementGatewayLlmLog (Standard v2), AppDependencies (hosted-agent gen_ai.* spans).
+// Verified live: the AI Gateway tier writes no ApiManagementGatewayLlmLog rows; its LLM telemetry is the AppRequests row per call.
+let Tier =
+    AppRequests
+    | where AppRoleName startswith "aigw-"
+    | extend m=todynamic(Measurements)
+    | extend Surface=case(Name has "/models/", "llm", Name has "/toolservers/", "mcp", "other")
+    | summarize Requests=count(), Failed=countif(Success == false), InputTokens=tolong(sum(todouble(m["gen_ai.usage.input_tokens"]))), OutputTokens=tolong(sum(todouble(m["gen_ai.usage.output_tokens"]))), AvgDurationMs=avg(DurationMs) by Gateway="aigateway-tier", Surface, Route=Name, TimeGenerated=bin(TimeGenerated, 1h);
+let TierMcp =
+    ApiManagementGatewayMCPLog
+    | summarize Requests=count(), Failed=countif(isnotempty(Error)), InputTokens=long(0), OutputTokens=long(0), AvgDurationMs=real(null) by Gateway="aigateway-tier-mcp-log", Surface="mcp", Route=strcat(McpServerEndpoint, " ", Method), TimeGenerated=bin(TimeGenerated, 1h);
 let StandardV2 =
     ApiManagementGatewayLlmLog
-    | extend Gateway = "apim-standard-v2",
-             Model = tostring(ModelName),
-             Operation = "chat-or-responses",
-             TokenType = "total",
-             TokenCount = todouble(TotalTokens),
-             CorrelationId = tostring(CorrelationId);
-union isfuzzy=true TierGenAi, StandardV2
-| summarize Requests=count(), Tokens=sum(TokenCount) by Gateway, Model, Operation, TokenType, bin(TimeGenerated, 1h)
-| order by TimeGenerated desc, Gateway asc
+    | summarize Requests=count(), Failed=long(0), InputTokens=sum(tolong(PromptTokens)), OutputTokens=sum(tolong(CompletionTokens)), AvgDurationMs=real(null) by Gateway="apim-standard-v2", Surface="llm", Route=strcat("model=", ModelName), TimeGenerated=bin(TimeGenerated, 1h);
+let AgentSpans =
+    AppDependencies
+    | extend p=todynamic(Properties)
+    | where isnotempty(tostring(p["gen_ai.operation.name"]))
+    | summarize Requests=count(), Failed=countif(Success == false), InputTokens=sum(tolong(p["gen_ai.usage.input_tokens"])), OutputTokens=sum(tolong(p["gen_ai.usage.output_tokens"])), AvgDurationMs=avg(DurationMs) by Gateway=strcat("hosted-agent:", AppRoleName), Surface=tostring(p["gen_ai.operation.name"]), Route=tostring(p["gen_ai.request.model"]), TimeGenerated=bin(TimeGenerated, 1h);
+union isfuzzy=true Tier, TierMcp, StandardV2, AgentSpans
+| project TimeGenerated, Gateway, Surface, Route, Requests, Failed, InputTokens, OutputTokens, AvgDurationMs
+| order by TimeGenerated desc, Gateway asc, Surface asc

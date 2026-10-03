@@ -1,0 +1,112 @@
+{
+  "run": {
+    "label": "Live run 2026-10-02, eastus2",
+    "region": "eastus2",
+    "environment": "<azd-env>",
+    "resource_group": "<rg>",
+    "gateway_modes_exercised": ["apimv2", "aigateway"],
+    "gateway_modes_blocked": []
+  },
+  "agents": {
+    "maf": {
+      "host": "official-maf-host",
+      "package": "agent_framework_foundry_hosting",
+      "server": "ResponsesHostServer",
+      "version_deployed": 3,
+      "runtime_principal": "hosted-agent instance identity (distinct from blueprint principal, stable across versions)",
+      "key_vault_role": "Key Vault Secrets User (granted manually after agent deploy)",
+      "app_insights": "platform-injected connection string, appinsights_configured=True"
+    },
+    "langgraph": {
+      "host": "official-langgraph-host",
+      "package": "langchain_azure_ai.agents.hosting",
+      "server": "ResponsesHostServer",
+      "version_deployed": 3,
+      "responses_api_on_ai_gateway": true,
+      "runtime_principal": "hosted-agent instance identity (distinct from blueprint principal, stable across versions)",
+      "key_vault_role": "Key Vault Secrets User (granted manually after agent deploy)",
+      "app_insights": "platform-injected connection string, appinsights_configured=True"
+    }
+  },
+  "matrix": {
+    "caption": "Live walkthrough S1-S5, 2026-10-02: both hosted agents on the official Foundry hosts, through both gateways.",
+    "steps": [
+      {"id": "S1", "name": "Hosted agents"},
+      {"id": "S2", "name": "Identity"},
+      {"id": "S3", "name": "Tools / MCP"},
+      {"id": "S4", "name": "Scale / posture"},
+      {"id": "S5", "name": "Observability"}
+    ],
+    "columns": [
+      {"agent": "MAF", "gateway": "APIM Standard v2"},
+      {"agent": "LangGraph", "gateway": "APIM Standard v2"},
+      {"agent": "MAF", "gateway": "AI Gateway tier"},
+      {"agent": "LangGraph", "gateway": "AI Gateway tier"}
+    ],
+    "results": {
+      "S1": ["pass", "pass", "pass", "pass"],
+      "S2": ["pass", "pass", "pass", "pass"],
+      "S3": ["pass", "pass", "pass", "pass"],
+      "S4": ["pass", "pass", "pass", "pass"],
+      "S5": ["pass", "pass", "pass", "pass"]
+    }
+  },
+  "gateway_checks_apimv2": [
+    {"name": "401 without credential", "passed": true},
+    {"name": "LLM responses call", "passed": true},
+    {"name": "catalog MCP initialize / tools/list / tools/call", "passed": true},
+    {"name": "records MCP initialize / tools/list / tools/call", "passed": true},
+    {"name": "429 token-limit probe", "passed": true}
+  ],
+  "gateway_checks_aigateway": [
+    {"name": "401 without api-key", "passed": true},
+    {"name": "LLM responses call via model alias", "passed": true},
+    {"name": "catalog remote-MCP initialize / tools/list / tools/call", "passed": true},
+    {"name": "records OpenAPI-as-MCP initialize / tools/list / tools/call", "passed": true},
+    {"name": "429 rate-limit probe (183 of 240 concurrent requests throttled)", "passed": true}
+  ],
+  "provisioning": {
+    "unit": "seconds",
+    "note": "Per-resource durations reported by azd for the two successful 'azd provision' runs (run 1 = first full create of both gateways, run 2 = idempotent re-provision after Bicep fixes). The first attempt failed on the Container Apps ACR pull identity and is not included.",
+    "runs": 2,
+    "resources": {
+      "Resource group": [1.787, 2.439],
+      "Key Vault": [0.698, 0.751],
+      "Log Analytics workspace": [21.652, 22.188],
+      "Application Insights": [22.261, 22.891],
+      "Container Registry": [0.52, 0.547],
+      "Foundry account": [16.096, 17.622],
+      "Foundry project": [1.956, 2.948],
+      "Model deployment": [0.784, 1.526],
+      "Project connection": [0.492, 0.54],
+      "Container Apps environment": [1.746, 2.021],
+      "Container App: catalog-mcp": [17.125, 17.0],
+      "Container App: records-api": [17.212, 18.167],
+      "API Management Standard v2": [88.994, 23.615],
+      "API Management AI Gateway tier": [108.477, 22.18]
+    },
+    "phases_seconds": {
+      "azd provision (2 successful runs)": [285, 184],
+      "azd deploy catalog-mcp (1 run)": [84],
+      "azd deploy records-api (1 run)": [79],
+      "azd deploy agent-maf (3 runs)": [168, 103, 108],
+      "azd deploy agent-langgraph (3 runs)": [136, 127, 119],
+      "demo_walkthrough apimv2 (1 run)": [32],
+      "azd down --purge (1 run)":       [2193]
+    }
+  },
+  "audit_caption": "Saved queries 01-11 against the live workspace. 02 and 11 were rewritten and 04 and 09 repaired during the run.",
+  "audit_queries": [
+    {"id": "01", "name": "Who called which tool", "rows": 75, "status": "ok"},
+    {"id": "02", "name": "Token usage by agent and user", "rows": 5, "status": "fixed"},
+    {"id": "03", "name": "Denied and throttled requests", "rows": 70, "status": "ok"},
+    {"id": "04", "name": "End-to-end trace", "rows": 104, "status": "fixed"},
+    {"id": "05", "name": "MCP tool calls", "rows": 67, "status": "ok"},
+    {"id": "06", "name": "LLM prompts and completions", "rows": 100, "status": "ok"},
+    {"id": "07", "name": "Agent identity sign-ins", "rows": 0, "status": "empty"},
+    {"id": "08", "name": "Control-plane changes", "rows": 0, "status": "empty"},
+    {"id": "09", "name": "Content-safety blocks", "rows": 0, "status": "fixed"},
+    {"id": "10", "name": "Foundry audit", "rows": 942, "status": "ok"},
+    {"id": "11", "name": "AI Gateway tier telemetry", "rows": 30, "status": "fixed"}
+  ]
+}

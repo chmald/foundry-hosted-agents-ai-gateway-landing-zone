@@ -12,12 +12,13 @@
 </p>
 
 <p>
-  <img src="./assets/badges/version.svg" alt="pattern: v1.1.0">
+  <img src="./assets/badges/version.svg" alt="pattern: v1.2.0">
   <img src="./assets/badges/public-preview.svg" alt="status: Public preview">
   <img src="./assets/badges/regions-aigw.svg" alt="regions: East US 2 | Sweden Central">
+  <img src="./assets/badges/live-tested.svg" alt="validation: Live-tested">
 </p>
 
-Prerequisite gate for operators preparing a subscription, tenant, region, and workstation for the v1.1 dual-gateway / dual-agent-framework demo. Work top to bottom; the **pre-flight checklist at the end** is the go/no-go.
+Prerequisite gate for operators preparing a subscription, tenant, region, and workstation for the v1.2 dual-gateway / dual-agent-framework demo. Work top to bottom; the **pre-flight checklist at the end** is the go/no-go.
 
 ## At a glance
 
@@ -25,23 +26,42 @@ Prerequisite gate for operators preparing a subscription, tenant, region, and wo
 |---|---|---|
 | <img src="./assets/icons/subscription.svg" width="24" alt=""> | **Subscription + RBAC** | Role assignments (managed identities, Key Vault, Foundry) need Owner or User Access Administrator. |
 | <img src="./assets/icons/app-registrations.svg" width="24" alt=""> | **Entra app rights** | The hook creates a gateway app registration when `GATEWAY_APP_CLIENT_ID` is blank. |
-| <img src="./assets/icons/ai-gateway.svg" width="24" alt=""> | **Preview enrollment** | AI Gateway tier only exists in East US 2 / Sweden Central during preview. |
+| <img src="./assets/icons/ai-gateway.svg" width="24" alt=""> | **Preview feature registration** <img src="./assets/badges/public-preview.svg" alt="Public preview"> | The `AIGatewayPreview` feature must be registered, and the AI Gateway tier only exists in East US 2 / Sweden Central during preview. |
 | <img src="./assets/icons/foundry-models.svg" width="24" alt=""> | **Model quota** | `gpt-5.5` `2026-04-24` GlobalStandard capacity must exist in your region. |
 | <img src="./assets/icons/azure-devops.svg" width="24" alt=""> | **Tooling** | `az`, `azd` + `azure.ai.agents` extension (`>=1.0.0-beta.18`), PowerShell 7, Python 3.11+. |
 
 > [!IMPORTANT]
 > Everything dated **2026-10-02** below (regions, models, quotas, previews) is a snapshot. Re-verify at deploy time with the CLI snippets provided.
 
-## Subscription, preview enrollment, and licensing
+[![Prerequisites map](./assets/prerequisites-map.png)](./assets/prerequisites-map.png)
+
+<sub>Editable source: [`assets/prerequisites-map.drawio`](./assets/prerequisites-map.drawio) - regenerate with `python scripts/export_diagrams.py docs/assets`.</sub>
+
+## Subscription, preview feature registration, and licensing
 
 | | Requirement | Minimum | Notes |
 |---|---|---|---|
 | <img src="./assets/icons/subscription.svg" width="20" alt=""> | **Azure subscription** | One demo/dev subscription | Must permit APIM, Foundry, Container Apps, Key Vault, Log Analytics, and role assignments. |
 | <img src="./assets/icons/entra-roles.svg" width="20" alt=""> | **Subscription RBAC** | Owner, or Contributor + User Access Administrator | Needed for managed identities and Key Vault/Foundry role assignments. |
 | <img src="./assets/icons/app-registrations.svg" width="20" alt=""> | **Entra app registration** | Application Administrator, Cloud Application Administrator, or delegated process | Needed for APIM gateway app when `GATEWAY_APP_CLIENT_ID` is blank. |
-| <img src="./assets/icons/ai-gateway.svg" width="20" alt=""> | **AI Gateway tier preview** <br> <img src="./assets/badges/public-preview.svg" alt="Public preview"> | Preview access in East US 2 or Sweden Central | Public preview, no SLA, pricing TBA, and managed in `ai.gateway.azure.com`. |
+| <img src="./assets/icons/ai-gateway.svg" width="20" alt=""> | **AI Gateway tier preview** <br> <img src="./assets/badges/public-preview.svg" alt="Public preview"> | `AIGatewayPreview` feature registered; East US 2 or Sweden Central | Public preview, no SLA, pricing TBA, and managed in `ai.gateway.azure.com`. Without the feature the deployment fails (see below). |
 | <img src="./assets/icons/foundry-agent-service.svg" width="20" alt=""> | **Foundry hosted agents** <br> <img src="./assets/badges/ga.svg" alt="GA"> | Region/model availability and `azure.ai.agents` azd extension | Both `agent-maf` and `agent-langgraph` deploy with `host: azure.ai.agent`, `kind: hosted`. Sub-features (optimizer, long-running execution, A2A v0.3, routines) are preview. |
 | <img src="./assets/icons/entra-id-protection.svg" width="20" alt=""> | **Agent 365 / Conditional Access for agents** | Base Agent ID requires no special license. Conditional Access and Identity Protection on agents need Microsoft Agent 365 (via Microsoft 365 E7, or the Agent 365 add-on plus Entra ID P1 or Microsoft 365 E3). | Do not require a higher Entra tier than current Learn guidance states. This demo does **not** need these features to run. |
+
+### Register the AI Gateway preview feature
+
+> [!WARNING]
+> **The AI Gateway tier will not deploy until your subscription has the `AIGatewayPreview` feature registered.** The tier is `Microsoft.ApiManagement/service@2025-09-01-preview` with sku `AIGateway`; without the feature registration (or in an unsupported region) ARM rejects it. The old `Microsoft.ApiManagement/aigateways` type and `2026-05-01-preview` API version never worked in live testing (`InvalidResourceType` / `NoAvailableScaleGroups`) and are not used. Registration is per subscription and can take several minutes.
+
+```powershell
+az feature register --namespace Microsoft.ApiManagement --name AIGatewayPreview --subscription <SUBSCRIPTION_ID>
+# repeat until the state is "Registered"
+az feature show --namespace Microsoft.ApiManagement --name AIGatewayPreview --subscription <SUBSCRIPTION_ID> --query properties.state -o tsv
+# propagate the registration to the resource provider
+az provider register --namespace Microsoft.ApiManagement --subscription <SUBSCRIPTION_ID>
+```
+
+Skip this step only when you deploy with `AI_GATEWAY_MODE=apimv2`.
 
 > [!NOTE]
 > The demo itself does not depend on Entra ID P2 or any Agent 365 license. Licensing only matters if you add Conditional Access or Identity Protection for agent identities on top.
@@ -54,8 +74,8 @@ Prerequisite gate for operators preparing a subscription, tenant, region, and wo
 | <img src="./assets/icons/key-vault.svg" width="20" alt=""> | **Deploying user / pipeline** | Key Vault Secrets Officer + Key Vault Secrets User | Demo Key Vault | `postprovision` stores and verifies the AI Gateway runtime key. |
 | <img src="./assets/icons/app-registrations.svg" width="20" alt=""> | **Deploying user** | Application Administrator or Cloud Application Administrator | Tenant | Creates the gateway Entra app `gw-<env>` when `GATEWAY_APP_CLIENT_ID` is blank. |
 | <img src="./assets/icons/managed-identity.svg" width="20" alt=""> | **Gateway system-assigned managed identity** | **Foundry User** (`53ca6127-db72-4b80-b1b0-d745d6d5456d`) | Foundry account | Gateway calls the model deployment without keys. |
-| <img src="./assets/icons/managed-identity.svg" width="20" alt=""> | **Foundry project managed identity** | **Key Vault Secrets User** (`4633458b-17de-408a-b874-0445c86b69e6`) | Demo Key Vault | Hosted agents read the AI Gateway runtime key. |
-| <img src="./assets/icons/entra-workload-id.svg" width="20" alt=""> | **Hosted-agent runtime identity** | Same Key Vault role if the identity differs from the project identity | Demo Key Vault | The identity a published agent runs as may differ from the project identity - confirm live (see [01](./01-architecture.md#trust-boundaries)). |
+| <img src="./assets/icons/entra-workload-id.svg" width="20" alt=""> | **Hosted-agent instance identity** (one per agent) | **Key Vault Secrets User** (`4633458b-17de-408a-b874-0445c86b69e6`) | Demo Key Vault | Hosted agents read the AI Gateway runtime key. The identity exists only after `azd deploy`, so the `postdeploy` hook grants the role; this is the identity the agent actually runs as (see [07](./07-identity-auth-traceability.md#the-runtime-principal-is-the-instance-identity)). |
+| <img src="./assets/icons/managed-identity.svg" width="20" alt=""> | **Foundry project managed identity** | Not used for Key Vault reads | - | Distinct from the instance identity; granting it Key Vault access does not help the running agent. |
 
 Role definitions: [Azure built-in roles](https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles).
 
@@ -63,7 +83,7 @@ Role definitions: [Azure built-in roles](https://learn.microsoft.com/en-us/azure
 
 | | Provider | Needed for |
 |---|---|---|
-| <img src="./assets/icons/api-management.svg" width="20" alt=""> | `Microsoft.ApiManagement` | APIM v2 and the AI Gateway tier (`aigateways`). |
+| <img src="./assets/icons/api-management.svg" width="20" alt=""> | `Microsoft.ApiManagement` | APIM v2 and the AI Gateway tier (`service` with sku `AIGateway`; needs the `AIGatewayPreview` feature). |
 | <img src="./assets/icons/container-apps.svg" width="20" alt=""> | `Microsoft.App` | Container Apps for `catalog-mcp` and `records-api`. |
 | <img src="./assets/icons/foundry.svg" width="20" alt=""> | `Microsoft.CognitiveServices` | Foundry account, project, model deployment. |
 | <img src="./assets/icons/container-registry.svg" width="20" alt=""> | `Microsoft.ContainerRegistry` | Agent and tool images. |
@@ -84,13 +104,13 @@ az provider show --namespace Microsoft.ApiManagement --subscription <SUBSCRIPTIO
 |---|---|---|---|
 | <img src="./assets/icons/azure-devops.svg" width="20" alt=""> | **Azure CLI** | `az version` | Auth, provider registration, manual checks. |
 | <img src="./assets/icons/azure-devops.svg" width="20" alt=""> | **Azure Developer CLI** | `azd version` | `azd up`, services, hooks, and outputs. |
-| <img src="./assets/icons/foundry-agent-service.svg" width="20" alt=""> | **azd extension `azure.ai.agents`** | `azd extension list` | Deploys `agent-maf` and `agent-langgraph`; v1.1 requires `>=1.0.0-beta.18`. |
+| <img src="./assets/icons/foundry-agent-service.svg" width="20" alt=""> | **azd extension `azure.ai.agents`** | `azd extension list` | Deploys `agent-maf` and `agent-langgraph`; v1.2 requires `>=1.0.0-beta.18`. |
 | <img src="./assets/icons/code.svg" width="20" alt=""> | **PowerShell 7** | `pwsh -Version` | Hooks and profile sync script. |
 | <img src="./assets/icons/code.svg" width="20" alt=""> | **Python 3.11+** | `python --version` | Tests and validation scripts. |
 | <img src="./assets/icons/container-registry.svg" width="20" alt=""> | **Docker / remote build support** | `docker version` when local builds are used | Hosted-agent and tool images (`remoteBuild: true` avoids local Docker). |
 | <img src="./assets/icons/workbooks.svg" width="20" alt=""> | **draw.io Desktop / `DRAWIO_EXE`** | `python scripts/export_diagrams.py docs/assets --check` | Regenerates and verifies PNG diagrams. |
-| <img src="./assets/icons/foundry-agent-service.svg" width="20" alt=""> | **MAF packages** | `agent-framework-core`, `agent-framework-openai`, `agent-framework-foundry-hosting` | Microsoft Agent Framework hosted agent. |
-| <img src="./assets/icons/code.svg" width="20" alt=""> | **LangGraph packages** | `langchain-azure-ai[hosting]`, `langchain`, `langchain-openai`, `langchain-mcp-adapters` | LangGraph hosted agent. |
+| <img src="./assets/icons/foundry-agent-service.svg" width="20" alt=""> | **MAF packages** | `agent-framework-core`, `agent-framework-openai`, `agent-framework-foundry-hosting` (install with `--pre`) | Microsoft Agent Framework hosted agent on the official `ResponsesHostServer`. |
+| <img src="./assets/icons/code.svg" width="20" alt=""> | **LangGraph packages** | `langchain-azure-ai[hosting]`, `langchain`, `langchain-openai`, `langchain-mcp-adapters` (install with `--pre`) | LangGraph hosted agent on the official `ResponsesHostServer`. |
 
 Install the azd extension if missing:
 
@@ -107,7 +127,7 @@ Published snapshot date: **2026-10-02**. Verify at deployment time.
 | | Surface | Region requirement | Recommendation |
 |---|---|---|---|
 | <img src="./assets/icons/resource-group.svg" width="20" alt=""> | **Primary deployment `AZURE_LOCATION`** | Must support Foundry model, hosted agents, APIM v2, Container Apps, Key Vault, Log Analytics. | `eastus2` is the safest default for this demo. |
-| <img src="./assets/icons/ai-gateway.svg" width="20" alt=""> | **AI Gateway tier `AI_GATEWAY_TIER_LOCATION`** | **Only `eastus2` or `swedencentral` during public preview.** | Use `eastus2` unless data residency requires Sweden Central. |
+| <img src="./assets/icons/ai-gateway.svg" width="20" alt=""> | **AI Gateway tier `AI_GATEWAY_TIER_LOCATION`** <img src="./assets/badges/public-preview.svg" alt="Public preview"> | **Only `eastus2` or `swedencentral` during public preview.** | Use `eastus2` unless data residency requires Sweden Central. |
 | <img src="./assets/icons/api-management.svg" width="20" alt=""> | **APIM Standard v2 / Premium v2** | Verify SKU in target region. | Standard v2 default; Premium v2 for stricter enterprise networking. |
 | <img src="./assets/icons/foundry-models.svg" width="20" alt=""> | **Model deployment** | Verify `MODEL_NAME`, `MODEL_VERSION`, `MODEL_SKU`, and quota. | Keep `gpt-5.5` `2026-04-24` unless explicitly changed. |
 
@@ -119,7 +139,7 @@ Published snapshot date: **2026-10-02**. Verify at deployment time.
 | **Sweden Central** (`swedencentral`) | ✅ | ✅ | Use for EU data-residency conversations; 2,000 concurrent sessions per region. |
 | Any other region | ❌ (preview) | ✅ in 31 regions - see list below | `preprovision` rejects other `AI_GATEWAY_TIER_LOCATION` values. |
 
-Legend: ✅ available · ❌ not available · ⚠️ verify · ⏳ pending.
+Legend: ✅ available · ❌ not available · ⚠️ verify.
 
 ### Hosted-agent regions
 
@@ -136,14 +156,14 @@ Australia East · Brazil South · Canada Central · Canada East · Central US ·
 
 | | Caveat | Operational implication |
 |---|---|---|
-| <img src="./assets/icons/ai-gateway.svg" width="20" alt=""> | **Public preview; no SLA** | Use for pilots and validation with rollback to APIM v2. |
+| <img src="./assets/icons/ai-gateway.svg" width="20" alt=""> | **Public preview; no SLA** <img src="./assets/badges/public-preview.svg" alt="Public preview"> | Use for pilots and validation with rollback to APIM v2. |
 | <img src="./assets/icons/cost-management.svg" width="20" alt=""> | **Pricing TBA** | Do not use it for final cost commitments without current pricing. |
-| <img src="./assets/icons/policy.svg" width="20" alt=""> | **Management API `2026-05-01-preview`** | Expect API/property churn; validate automation after every update. |
-| <img src="./assets/icons/key-vault.svg" width="20" alt=""> | **Runtime access key in `api-key` header** | Store the key in Key Vault; do not treat it as principal identity. |
+| <img src="./assets/icons/policy.svg" width="20" alt=""> | **Management API `2025-09-01-preview`** | Expect API/property churn; validate automation after every update. |
+| <img src="./assets/icons/key-vault.svg" width="20" alt=""> | **Runtime access key in `api-key` header** | Store the key in Key Vault; do not treat it as principal identity. If a Key Vault network policy blocks the agent, see [05](./05-troubleshooting.md#hosted-agent-gets-forbiddenbyconnection-from-key-vault). |
 | <img src="./assets/icons/entra-id-protection.svg" width="20" alt=""> | **Gateway-scoped keys** | One key reaches all models and tools in the gateway during preview; create separate keys per app/environment where possible. |
 
 > [!WARNING]
-> Preview networking (inbound Private Link, outbound VNet integration) for the AI Gateway tier is itself in preview. Do not promise private-only AI Gateway tier traffic in a customer commitment.
+> Preview networking (inbound Private Link, outbound VNet integration) for the AI Gateway tier is itself in preview, and the tier private endpoint plus outbound integration are not verified end to end. Do not promise private-only AI Gateway tier traffic in a customer commitment.
 
 ## Model availability matrix (dated 2026-10-02)
 
@@ -152,7 +172,7 @@ Australia East · Brazil South · Canada Central · Canada East · Central US ·
 | Model | Version | SKU | Status in this demo | Retirement | Verdict |
 |---|---|---|---|---|---|
 | `gpt-5.5` | `2026-04-24` | GlobalStandard | **Default** (`MODEL_NAME`, `MODEL_VERSION`) | 2027-10-26 | ✅ Use |
-| `gpt-5.6-sol` / `-luna` / `-terra` | per Learn | GlobalStandard | Alternative; GA 2026-07-09 | 2028-01-11 | ✅ Optional - change all model vars together |
+| `gpt-5.6-sol` / `-luna` / `-terra` | per Learn | GlobalStandard | Alternative; <img src="./assets/badges/ga.svg" alt="GA"> 2026-07-09 | 2028-01-11 | ✅ Optional - change all model vars together |
 | `gpt-4o`, `gpt-4.1` | - | - | Avoid - deprecated | 2026-10-14 → 2027-04-14 | ❌ Do not use |
 | `gpt-5.1`, `gpt-5.2` | - | - | Avoid - shorter runway | 2027-05-15 / 2027-06-08 | ⚠️ Avoid for new builds |
 
@@ -225,13 +245,14 @@ If `gpt-5.5` is missing or quota is zero, pick another region/model and update `
 - [ ] Tenant and subscription IDs are known.
 - [ ] `az login --tenant <TENANT_ID>` and `azd auth login --tenant-id <TENANT_ID>` completed; `az account show` matches.
 - [ ] `AI_GATEWAY_TIER_LOCATION` is `eastus2` or `swedencentral` when the preview tier is enabled.
+- [ ] `az feature show --namespace Microsoft.ApiManagement --name AIGatewayPreview` reports `Registered` (tier modes only).
 - [ ] `azure.ai.agents` extension is installed (`>=1.0.0-beta.18`).
 - [ ] MAF and LangGraph package requirements are understood for local/offline validation.
 - [ ] Model/version quota and retirement posture are checked (see the dated matrix).
 - [ ] APIM v2 SKU availability checked.
 - [ ] Resource providers registered.
 - [ ] azd environment name is ≤ 20 characters.
-- [ ] Runtime key handling is approved: Key Vault only, never docs/output/logs.
+- [ ] Runtime key handling is approved: Key Vault only (or the demo-only `AIGW_KEY_DELIVERY=env` opt-in), never docs/output/logs.
 - [ ] Optional diagnostics exports have the required tenant permissions.
 
 Next: [03 - Deployment](./03-deployment.md) →

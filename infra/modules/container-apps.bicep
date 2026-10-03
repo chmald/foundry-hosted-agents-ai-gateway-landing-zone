@@ -40,6 +40,43 @@ resource managedEnvironment 'Microsoft.App/managedEnvironments@2024-03-01' = {
   } : {})
 }
 
+var acrPullRoleDefinitionId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
+
+resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
+  name: last(split(containerRegistryResourceId, '/'))
+}
+
+// A user-assigned identity exists (and holds AcrPull) before any app is created, so a first-time deploy
+// can register the ACR with an identity. A system identity cannot be granted AcrPull before the app exists.
+resource pullIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: 'id-${environmentName}-acrpull'
+  location: location
+  tags: tags
+}
+
+resource pullIdentityAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: acr
+  name: guid(containerRegistryResourceId, pullIdentity.id, acrPullRoleDefinitionId)
+  properties: {
+    principalId: pullIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPullRoleDefinitionId)
+  }
+}
+
+var appIdentity = {
+  type: 'SystemAssigned,UserAssigned'
+  userAssignedIdentities: {
+    '${pullIdentity.id}': {}
+  }
+}
+var appRegistries = [
+  {
+    server: containerRegistryEndpoint
+    identity: pullIdentity.id
+  }
+]
+
 var placeholderImage = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
 var commonEnv = [
   {
@@ -59,19 +96,15 @@ resource catalogMcp 'Microsoft.App/containerApps@2024-03-01' = {
   tags: union(tags, {
     'azd-service-name': 'catalog-mcp'
   })
-  identity: {
-    type: 'SystemAssigned'
-  }
+  identity: appIdentity
+  dependsOn: [
+    pullIdentityAcrPull
+  ]
   properties: {
     managedEnvironmentId: managedEnvironment.id
     configuration: {
       activeRevisionsMode: 'Single'
-      registries: [
-        {
-          server: containerRegistryEndpoint
-          identity: 'system'
-        }
-      ]
+      registries: appRegistries
       ingress: {
         external: !networkIsolation
         targetPort: 8080
@@ -110,19 +143,15 @@ resource recordsApi 'Microsoft.App/containerApps@2024-03-01' = {
   tags: union(tags, {
     'azd-service-name': 'records-api'
   })
-  identity: {
-    type: 'SystemAssigned'
-  }
+  identity: appIdentity
+  dependsOn: [
+    pullIdentityAcrPull
+  ]
   properties: {
     managedEnvironmentId: managedEnvironment.id
     configuration: {
       activeRevisionsMode: 'Single'
-      registries: [
-        {
-          server: containerRegistryEndpoint
-          identity: 'system'
-        }
-      ]
+      registries: appRegistries
       ingress: {
         external: !networkIsolation
         targetPort: 8080
@@ -160,19 +189,15 @@ resource hostedAgentAca 'Microsoft.App/containerApps@2024-03-01' = if (deployAge
   tags: union(tags, {
     'azd-service-name': 'hosted-agent-on-aca'
   })
-  identity: {
-    type: 'SystemAssigned'
-  }
+  identity: appIdentity
+  dependsOn: [
+    pullIdentityAcrPull
+  ]
   properties: {
     managedEnvironmentId: managedEnvironment.id
     configuration: {
       activeRevisionsMode: 'Single'
-      registries: [
-        {
-          server: containerRegistryEndpoint
-          identity: 'system'
-        }
-      ]
+      registries: appRegistries
       ingress: {
         external: !networkIsolation
         targetPort: 8088
@@ -208,34 +233,10 @@ resource hostedAgentAca 'Microsoft.App/containerApps@2024-03-01' = if (deployAge
   }
 }
 
-var acrPullRoleDefinitionId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
-
-resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
-  name: last(split(containerRegistryResourceId, '/'))
-}
-
-resource catalogAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: acr
-  name: guid(containerRegistryResourceId, catalogMcp.id, acrPullRoleDefinitionId)
-  properties: {
-    principalId: catalogMcp.identity.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPullRoleDefinitionId)
-  }
-}
-
-resource recordsAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: acr
-  name: guid(containerRegistryResourceId, recordsApi.id, acrPullRoleDefinitionId)
-  properties: {
-    principalId: recordsApi.identity.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPullRoleDefinitionId)
-  }
-}
-
 output environmentName string = managedEnvironment.name
 output environmentId string = managedEnvironment.id
+output defaultDomain string = managedEnvironment.properties.defaultDomain
+output staticIp string = managedEnvironment.properties.staticIp
 output catalogMcpFqdn string = catalogMcp.properties.configuration.ingress.fqdn
 output recordsApiFqdn string = recordsApi.properties.configuration.ingress.fqdn
 output hostedAgentAcaFqdn string = deployAgentOnAca ? hostedAgentAca.properties.configuration.ingress.fqdn : ''

@@ -12,7 +12,7 @@
 <img src="./assets/icons/foundry-agent-service.svg" width="40" alt="Foundry Agent Service"/>
 </p>
 
-![GA](./assets/badges/ga.svg) ![Preview](./assets/badges/preview.svg) ![Public preview](./assets/badges/public-preview.svg) ![DIY](./assets/badges/diy.svg) ![version](./assets/badges/version.svg)
+![GA](./assets/badges/ga.svg) ![Preview](./assets/badges/preview.svg) ![Public preview](./assets/badges/public-preview.svg) ![DIY](./assets/badges/diy.svg) ![version](./assets/badges/version.svg) ![live-tested](./assets/badges/live-tested.svg)
 
 This is the central page of the demo. It answers the question enterprise security teams ask first: **when an agent calls a model or a tool, who is that, and can we prove it afterwards?** It explains how identity is established for a hosted agent, what the gateway can and cannot prove, how identity and trace context reach the tool backends, and how to correlate everything in Log Analytics. It closes with the five design questions you should settle before scaling to thousands of agents.
 
@@ -20,7 +20,7 @@ This is the central page of the demo. It answers the question enterprise securit
 
 | | Topic | One-line answer |
 |---|---|---|
-| <img src="./assets/icons/entra-workload-id.svg" width="24" alt="Entra Workload ID"/> | Agent identity | Hosted agents share **one project-level identity until published**, then get a **dedicated** blueprint and identity |
+| <img src="./assets/icons/entra-workload-id.svg" width="24" alt="Entra Workload ID"/> | Agent identity | The runtime principal of a hosted agent is its **instance identity** (distinct from the blueprint and the project identity), found live on 2026-10-02 |
 | <img src="./assets/icons/entra-id.svg" width="24" alt="Microsoft Entra ID"/> | User-invoked agents | **On-behalf-of (OBO)**: the agent acts as the user, token carries both |
 | <img src="./assets/icons/app-registrations.svg" width="24" alt="App registrations"/> | Autonomous agents | **client_credentials**: the agent acts as itself |
 | <img src="./assets/icons/api-management.svg" width="24" alt="API Management"/> | APIM Standard v2 | **Validates** the token and derives `x-gw-*` headers; never exchanges tokens |
@@ -33,13 +33,38 @@ This is the central page of the demo. It answers the question enterprise securit
 
 Foundry integrates with **Microsoft Entra Agent ID**. A hosted agent is not just a container; it has an identity that other systems can authorize and audit. Source: [Agent identity concepts in Foundry](https://learn.microsoft.com/en-us/azure/foundry/agents/concepts/agent-identity).
 
-| Phase | Identity the agent runs as | Consequence |
+| Principal | What it is | Used for |
 |---|---|---|
-| **Before publish** (development, shared project) | One **shared project-level** agent blueprint and identity | All unpublished hosted agents in the project look like the same principal downstream |
-| **After publish** | A **dedicated** agent blueprint and identity for that agent | Downstream systems can authorize, audit and revoke this agent individually |
+| **Blueprint** | The Entra Agent ID blueprint created when the agent is registered | Registration; **not** the identity that calls downstream services in the live run |
+| **Foundry project identity** | The managed identity of the Foundry project | Project-level operations; **not** the agent's effective runtime identity |
+| **Instance identity principal** | A per-agent identity created when the agent is deployed; returned by `azd ai agent show <agent> --output json` as `instance_identity.principal_id` | The **effective runtime identity**: it obtains tokens for the model, the gateway and Key Vault. Stable across agent versions |
+
+### The runtime principal is the instance identity
+
+The v1.2 live run (2026-10-02) settled which identity a hosted agent really uses. Two consequences follow:
 
 > [!IMPORTANT]
-> Design role assignments (Key Vault, tools, data) with the **publish transition** in mind. Anything granted to the shared project identity will not automatically apply to the dedicated identity created at publish. This demo's Key Vault read of the AI Gateway runtime key is the clearest example: confirm in a live run which identity performs the read and grant **Key Vault Secrets User** accordingly (open item, see [05 - Troubleshooting](./05-troubleshooting.md)).
+> **Bicep cannot grant the instance identity anything.** It only exists after `azd deploy`, so the grant has to happen afterwards. It needs **Key Vault Secrets User** on the demo vault to read the AI Gateway runtime key. The `postdeploy` hook (`infra/hooks/postdeploy-agents.ps1`) does this idempotently for each agent ([03](./03-deployment.md#key-delivery-and-the-postdeploy-hook)); it is covered by offline tests but was granted by hand in the live run, so treat it as not live-verified.
+
+| Gateway lane | Role needed by the instance identity | Why |
+|---|---|---|
+| APIM Standard v2 | **None** | APIM validates the bearer token (audience `https://cognitiveservices.azure.com`) and reaches Foundry with its own managed identity |
+| AI Gateway tier | **Key Vault Secrets User** on the vault (or `AIGW_KEY_DELIVERY=env`) | The agent reads the gateway-scoped runtime key from Key Vault |
+
+When `FOUNDRY_HOSTING_ENVIRONMENT` is set, the agent code builds `ManagedIdentityCredential(client_id=FOUNDRY_AGENT_INSTANCE_CLIENT_ID)`; the platform injects both variables.
+
+### Key Vault access under network policy
+
+Granting the role is not always enough. In the live subscription, the MCAPS policy `KeyVault_PublicNetwork_Modify` forced Key Vault public network access off. Hosted agents run **outside your VNet**, so the vault returned `ForbiddenByConnection` even with the role in place.
+
+| Option | What it does | Status |
+|---|---|---|
+| **Network isolation mode** (`NETWORK_ISOLATION=true`) | Adds a Key Vault private endpoint and agent subnet injection, so the read stays on the private network. This is the proper fix. | ![static-only](./assets/badges/static-only.svg) what-if validated only |
+| `AIGW_KEY_DELIVERY=env` | The runtime key is copied into the azd env and the agent configuration, so the agent never calls Key Vault. A demo-only compromise: the key is stored in plaintext in `.azure/<env>/.env`. | ![live-tested](./assets/badges/live-tested.svg) |
+| Allow public access on the vault | Opens the vault to the internet | Blocked by the policy in the test subscription; not recommended |
+
+> [!WARNING]
+> `AIGW_KEY_DELIVERY=env` makes the runtime key readable by anyone who can read the agent configuration or your local azd env. Use it only for disposable demos. In `keyvault` mode the agent also falls back to a non-empty `AIGW_RUNTIME_KEY` when the vault read fails, logging the WARNING `aigw_runtime_key_source`. Troubleshooting steps: [05](./05-troubleshooting.md#hosted-agent-gets-forbiddenbyconnection-from-key-vault).
 
 ## OBO vs client credentials
 
@@ -91,7 +116,7 @@ Both policies run on all APIM tiers. Source: [validate-azure-ad-token](https://l
 |---|---|---|
 | Scope | Entra-specific convenience wrapper | Generic, any identity provider |
 | Configuration | Tenant id, accepted client app ids, audiences | OpenID config URL, issuers, audiences, required claims |
-| Entra ID for customers | Not supported (preview limitation) | Use it for issuers outside the wrapper's scope |
+| Entra ID for customers | Not supported (<img src="./assets/badges/public-preview.svg" alt="Public preview"> limitation) | Use it for issuers outside the wrapper's scope |
 | Used here | **Yes**, in the LLM, MCP and records API policies | Alternative if you add a non-Entra IdP |
 | Backend credential | n/a (`authentication-managed-identity` is a separate policy for APIM-to-backend calls) | n/a |
 
@@ -154,6 +179,10 @@ Values are illustrative. The shape is enforced by `tests/test_audit_record.py` a
 
 ## Standard v2 vs AI Gateway tier: what identity can you prove?
 
+[![Gateway identity comparison](./assets/gateway-identity-comparison.png)](./assets/gateway-identity-comparison.png)
+
+<sub>Editable source: [`assets/gateway-identity-comparison.drawio`](./assets/gateway-identity-comparison.drawio) - regenerate with `python scripts/export_diagrams.py docs/assets`.</sub>
+
 | | Dimension | <img src="./assets/icons/api-management.svg" width="20" alt="API Management"/> APIM Standard v2 | <img src="./assets/icons/ai-gateway.svg" width="20" alt="AI Gateway"/> AI Gateway tier |
 |---|---|---|---|
 | | Status | ![GA](./assets/badges/ga.svg) | ![Public preview](./assets/badges/public-preview.svg) ![regions](./assets/badges/regions-aigw.svg) |
@@ -163,7 +192,7 @@ Values are illustrative. The shape is enforced by `tests/test_audit_record.py` a
 | | Agent attribution (`agent_principal`) | Yes, from validated claims | `null` |
 | | What the audit shows | `gateway=apimv2`, `caller=null`, real principals | `gateway=aigateway`, `caller=aigw-runtime-key:agents`, `agent_principal=null` |
 | | Per-agent quota | `llm-token-limit` keyed per agent | Gateway-level policy cards (token and request rate limits, IP filter, content safety) |
-| | Telemetry | `ApiManagementGatewayLogs`, `...LlmLog`, `...MCPLog` | OTel GenAI `gen_ai.*` to Application Insights or OTLP |
+| | Telemetry | `ApiManagementGatewayLogs`, `...LlmLog`, `...MCPLog` | Application Insights `AppRequests` (tokens in `Measurements["gen_ai.usage.*"]`), `AppDependencies`, plus `ApiManagementGatewayMCPLog`; **no** `ApiManagementGatewayLlmLog` |
 | | SLA | Per APIM tier | None (preview) |
 
 > [!TIP]
@@ -181,7 +210,7 @@ The agents create a W3C `traceparent` if the caller did not send one, forward it
 |---|---|---|
 | Who called which tool? | `01-who-called-which-tool.kql` | [doc 09](./09-monitoring-and-audit.md) |
 | Show everything for one trace | `04-end-to-end-trace.kql` (pass `--trace-id`) | [doc 09](./09-monitoring-and-audit.md) |
-| What did AI Gateway tier telemetry record? | `11-ai-gateway-tier-telemetry.kql` | [doc 09](./09-monitoring-and-audit.md) |
+| What did AI Gateway tier telemetry record? | `11-ai-gateway-tier-telemetry.kql` (`AppRequests`) | [doc 09](./09-monitoring-and-audit.md) |
 
 > [!CAUTION]
 > **Cross-system correlation is DIY.** There is no managed service that stitches Entra sign-in logs, gateway logs, tool logs and model telemetry together for you. The join key is the W3C `traceparent` trace id (plus `x-gw-request-id` for APIM), and the glue is KQL you own. OpenTelemetry GenAI semantic conventions (`invoke_agent`, `execute_tool`, `chat`) are still at "Development" status upstream, so expect attribute names to evolve. Agent sign-ins appear as an `agentSignIn` attribute on existing Entra sign-in logs ([Learn](https://learn.microsoft.com/en-us/entra/agent-id/sign-in-audit-logs-agents)), not as a new table.
@@ -211,13 +240,16 @@ Not every agent you own runs in Foundry. The identity approach differs by where 
 
 | Runtime | Identity primitive | Gateway validation works? | Notes |
 |---|---|---|---|
-| <img src="./assets/icons/foundry-agent-service.svg" width="20" alt="Foundry Agent Service"/> **Foundry hosted agent** | Agent ID blueprint + identity (shared, then dedicated at publish) | Yes (APIM v2 lane) | The reference path in this repo |
+| <img src="./assets/icons/foundry-agent-service.svg" width="20" alt="Foundry Agent Service"/> **Foundry hosted agent** | Agent ID blueprint plus a per-agent instance identity (the runtime principal) | Yes (APIM v2 lane) | The reference path in this repo |
 | <img src="./assets/icons/container-apps.svg" width="20" alt="Container Apps"/> **Self-hosted on Container Apps** | Managed identity or app registration you assign | Yes, if it obtains a token for the gateway audience | You own lifecycle and governance |
 | <img src="./assets/icons/entra-id-governance.svg" width="20" alt="Entra ID Governance"/> **Microsoft Copilot Studio** | Entra Agent ID | Yes, as an Entra principal | Exempt from the 250 limit |
 | <img src="./assets/icons/virtual-network.svg" width="20" alt="Other platforms"/> **Non-Microsoft platforms** | App-only client credentials | Yes (app-only token), but **no OBO and no actor-facet semantics** unless the platform supports Agent ID flows | Subject to the 250 limit |
 | <img src="./assets/icons/ai-gateway.svg" width="20" alt="AI Gateway"/> **Any agent via AI Gateway tier** | Runtime key | **No** per-identity validation | Anyone with the key is "the caller" |
 
 ## The 250-identity limit
+
+> [!NOTE]
+> The limit applies to non-Microsoft platforms using app-only client credentials. Foundry and Copilot Studio agents are exempt.
 
 The documented limit of **250 agent identities** applies only to **non-Microsoft platforms that use app-only client credentials**. **Foundry** and **Microsoft Copilot Studio** are exempt. It is not a limit on how many hosted agents you can run in Foundry. Source: [Agent ID FAQ](https://learn.microsoft.com/en-us/entra/agent-id/faq). Note that separate Foundry limits exist (for example 128 tools per agent, per-region session caps; see [doc 06](./06-hosted-agents-explained.md)).
 
@@ -229,8 +261,8 @@ Settle these before scale. Each card shows the question, the options, and how th
 
 | Option | Pros | Cons |
 |---|---|---|
-| Shared project identity | Fastest; fewest objects | No separation, cannot revoke one agent |
-| **Dedicated identity per published agent** | Individual authorization and revocation | More objects to govern |
+| Shared project identity | Fastest; fewest objects | No separation, cannot revoke one agent; not what a hosted agent runs as in v1.2 |
+| **Dedicated instance identity per agent** | Individual authorization and revocation | More objects to govern; must be granted after deploy |
 | Per-user delegated (OBO) | Real human accountability | Requires an interactive caller |
 
 **How the demo helps:** it shows both modes (`invoke_as_user.py` for OBO, default scripts for client_credentials) and records which one occurred in the audit.
@@ -241,7 +273,7 @@ Settle these before scale. Each card shows the question, the options, and how th
 |---|---|---|
 | Gateway managed identity | The gateway | Simple, loses attribution |
 | **Derived `x-gw-*` headers from validated token** | Real agent and human | Needs a trusted gateway and the fragment on every API |
-| Runtime key label | Key name only | Preview tier today |
+| Runtime key label | Key name only | AI Gateway tier today <img src="./assets/badges/public-preview.svg" alt="Public preview"> |
 
 **How the demo helps:** `human_principal`, `agent_principal`, `gateway` and `caller` fields make the answer visible per call.
 
@@ -261,7 +293,7 @@ Settle these before scale. Each card shows the question, the options, and how th
 | Foundry control plane + Agent ID governance | Central inventory, lifecycle | Governance features for agents need Agent 365 licensing |
 | Tag and policy conventions only | No extra license | Manual, drift-prone |
 
-**How the demo helps:** it applies naming, dedicated identity at publish, and Azure Policy posture (see [doc 10](./10-enterprise-posture-and-scale.md)); licensing is explicit above.
+**How the demo helps:** it applies naming, a dedicated instance identity per agent, and Azure Policy posture (see [doc 10](./10-enterprise-posture-and-scale.md)); licensing is explicit above.
 
 ### 5. Runtime coverage for non-Foundry agents
 

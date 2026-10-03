@@ -1,0 +1,79 @@
+{
+  "run": {
+    "label": "Live run 2026-10-01, eastus2",
+    "region": "eastus2",
+    "environment": "<azd-env>",
+    "resource_group": "<rg>",
+    "gateway_modes_exercised": ["apimv2"],
+    "gateway_modes_blocked": ["aigateway"]
+  },
+  "matrix": {
+    "steps": [
+      {"id": "S1", "name": "Hosted agents"},
+      {"id": "S2", "name": "Identity"},
+      {"id": "S3", "name": "Tools / MCP"},
+      {"id": "S4", "name": "Scale / posture"},
+      {"id": "S5", "name": "Observability"}
+    ],
+    "columns": [
+      {"agent": "MAF", "gateway": "APIM Standard v2"},
+      {"agent": "LangGraph", "gateway": "APIM Standard v2"},
+      {"agent": "MAF", "gateway": "AI Gateway tier"},
+      {"agent": "LangGraph", "gateway": "AI Gateway tier"}
+    ],
+    "results": {
+      "S1": ["pass", "pass", "blocked", "blocked"],
+      "S2": ["pass", "pass", "blocked", "blocked"],
+      "S3": ["pass", "pass", "blocked", "blocked"],
+      "S4": ["pass", "pass", "blocked", "blocked"],
+      "S5": ["pass", "pass", "blocked", "blocked"]
+    }
+  },
+  "gateway_checks_apimv2": [
+    {"name": "401 without credential", "passed": true},
+    {"name": "LLM responses call", "passed": true},
+    {"name": "catalog MCP initialize / tools/list / tools/call", "passed": true},
+    {"name": "records MCP initialize / tools/list / tools/call", "passed": true},
+    {"name": "429 token-limit probe", "passed": true}
+  ],
+  "provisioning": {
+    "unit": "seconds",
+    "note": "Per-resource durations reported by azd across 7 successful 'azd provision' runs in the fix loop (mostly incremental redeploys).",
+    "runs": 7,
+    "resources": {
+      "Resource group": [1.259, 1.39, 1.412, 2.856, 1.491, 1.942, 1.399],
+      "Key Vault": [0.325, 1.642, 0.515, 0.629, 0.363, 0.506, 1.177],
+      "Log Analytics workspace": [20.937, 20.581, 22.037, 21.729, 20.736, 20.577, 21.787],
+      "Application Insights": [21.609, 21.191, 24.053, 22.307, 21.393, 21.108, 23.771],
+      "Container Registry": [1.918, 1.69, 0.694, 0.627, 0.397, 0.529, 0.456],
+      "Foundry account": [17.684, 18.507, 16.408, 16.387, 16.293, 16.685, 17.54],
+      "Foundry project": [1.571, 3.833, 2.202, 1.919, 2.756, 1.953, 2.558],
+      "Model deployment": [0.462, 1.536, 0.827, 0.825, 0.865, 0.843, 1.48],
+      "Project connection": [0.543, 1.317, 0.663, 0.497, 0.619, 0.525, 0.602],
+      "Container Apps environment": [2.922, 3.951, 4.08, 2.924, 1.73, 2.479, 2.818],
+      "Container App: catalog-mcp": [18.743, 20.221, 20.841, 20.023, 19.026, 19.784, 19.06],
+      "Container App: records-api": [16.215, 16.986, 21.142, 16.339, 17.124, 16.137, 16.102],
+      "API Management Standard v2": [22.509, 22.057, 24.486, 22.219, 21.819, 23.314, 22.33]
+    },
+    "phases_seconds": {
+      "azd provision (7 runs)": [180, 195, 216, 185, 181, 194, 189],
+      "azd deploy services (1 run)": [206],
+      "azd deploy agent-maf (4 runs)": [114, 99, 109, 120],
+      "azd deploy agent-langgraph (4 runs)": [142, 113, 138, 126],
+      "azd down --purge (1 run)": [2103]
+    }
+  },
+  "audit_queries": [
+    {"id": "01", "name": "Who called which tool", "rows": 29, "status": "ok"},
+    {"id": "02", "name": "Token usage by agent and user", "rows": 2, "status": "ok"},
+    {"id": "03", "name": "Denied and throttled requests", "rows": 9, "status": "ok"},
+    {"id": "04", "name": "End-to-end trace", "rows": 29029, "status": "ok"},
+    {"id": "05", "name": "MCP tool calls", "rows": 7, "status": "ok"},
+    {"id": "06", "name": "LLM prompts and completions", "rows": 18, "status": "fixed"},
+    {"id": "07", "name": "Agent identity sign-ins", "rows": 0, "status": "empty"},
+    {"id": "08", "name": "Control-plane changes", "rows": 0, "status": "empty"},
+    {"id": "09", "name": "Content-safety blocks", "rows": 0, "status": "empty"},
+    {"id": "10", "name": "Foundry audit", "rows": 194, "status": "ok"},
+    {"id": "11", "name": "AI Gateway tier telemetry", "rows": 4, "status": "unverified"}
+  ]
+}

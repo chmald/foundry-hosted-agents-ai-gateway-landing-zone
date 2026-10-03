@@ -1,17 +1,23 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import os
-from dataclasses import dataclass
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
-import httpx
+from langchain.agents import create_agent
+from langchain.agents.middleware import AgentMiddleware
+from langchain_core.tools import BaseTool
+from langchain_mcp_adapters.client import MultiServerMCPClient
+from langchain_openai import ChatOpenAI
 
-from gateway_auth import GatewaySelection, gateway_headers, make_traceparent, resolve_gateway
-from telemetry import genai_span
+from gateway_auth import PLACEHOLDER_API_KEY, GatewayAuth, GatewaySelection, build_http_client, resolve_gateway
 
 DEFAULT_PROFILE = "manufacturing-field-ops"
+LOGGER = logging.getLogger("agent_host")
 
 
 def _candidate_roots() -> list[Path]:
@@ -33,109 +39,70 @@ def load_profile() -> dict[str, Any]:
     raise RuntimeError(f"Profile not found for DOMAIN_PROFILE={profile_name!r}. Checked: {', '.join(str(p) for p in candidates)}")
 
 
-@dataclass
-class AgentResult:
-    text: str
-    traceparent: str
-    tool_calls: list[dict[str, Any]]
+class LazyMcpToolsMiddleware(AgentMiddleware):
+    """Load the gateway MCP tools on the first model call instead of at import.
+
+    ``MultiServerMCPClient.get_tools()`` is network I/O, so it must not run while the
+    host starts (``/readiness`` has to pass even when a backend is slow). A server that
+    cannot be reached is skipped for that request and retried on the next one.
+    """
+
+    def __init__(self, servers: dict[str, dict[str, Any]], timeout_seconds: float = 30.0) -> None:
+        super().__init__()
+        self._servers = servers
+        self._timeout = timeout_seconds
+        self._tools: dict[str, list[BaseTool]] = {}
+        self._lock = asyncio.Lock()
+
+    async def _load_server(self, name: str, connection: dict[str, Any]) -> None:
+        try:
+            client = MultiServerMCPClient({name: connection})
+            self._tools[name] = await asyncio.wait_for(client.get_tools(), timeout=self._timeout)
+            LOGGER.info("mcp_tools_loaded server=%s count=%d", name, len(self._tools[name]))
+        except Exception as exc:  # noqa: BLE001 - degrade to no tools and retry on the next request
+            LOGGER.warning("mcp_tools_unavailable server=%s error=%s", name, exc)
+
+    async def _tools_for_request(self) -> list[BaseTool]:
+        async with self._lock:
+            pending = [(name, conn) for name, conn in self._servers.items() if name not in self._tools]
+            await asyncio.gather(*(self._load_server(name, conn) for name, conn in pending))
+            return [tool for tools in self._tools.values() for tool in tools]
+
+    async def awrap_model_call(self, request: Any, handler: Callable[[Any], Awaitable[Any]]) -> Any:
+        tools = await self._tools_for_request()
+        return await handler(request.override(tools=[*request.tools, *tools]))
+
+    async def awrap_tool_call(self, request: Any, handler: Callable[[Any], Awaitable[Any]]) -> Any:
+        if request.tool is None:
+            known = {tool.name: tool for tools in self._tools.values() for tool in tools}
+            tool = known.get(request.tool_call["name"])
+            if tool is not None:
+                request = request.override(tool=tool)
+        return await handler(request)
 
 
-class GatewayJsonRpcToolClient:
-    def __init__(self, endpoint: str, selection: GatewaySelection, client: httpx.AsyncClient | None = None) -> None:
-        self.endpoint = endpoint
-        self.selection = selection
-        self.client = client or httpx.AsyncClient(timeout=45)
-        self.session_id: str | None = None
-
-    async def call_tool(self, name: str, arguments: dict[str, Any], traceparent: str) -> dict[str, Any]:
-        if not self.endpoint:
-            return {"tool": name, "arguments": arguments, "offline": True}
-        headers = gateway_headers(self.selection, traceparent)
-        headers.update({"Accept": "application/json, text/event-stream", "Content-Type": "application/json"})
-        if self.session_id:
-            headers["mcp-session-id"] = self.session_id
-        payload = {"jsonrpc": "2.0", "id": "1", "method": "tools/call", "params": {"name": name, "arguments": arguments}}
-        response = await self.client.post(self.endpoint, headers=headers, json=payload)
-        response.raise_for_status()
-        if response.headers.get("mcp-session-id"):
-            self.session_id = response.headers["mcp-session-id"]
-        body = response.json()
-        if "error" in body:
-            raise RuntimeError(body["error"].get("message", "MCP tool call failed"))
-        result = body.get("result") or {}
-        if result.get("structuredContent"):
-            return result["structuredContent"]
-        content = result.get("content") or []
-        if content and isinstance(content[0], dict):
-            try:
-                return json.loads(content[0].get("text", "{}"))
-            except json.JSONDecodeError:
-                return {"text": content[0].get("text")}
-        return result
-
-
-class OfflineModelClient:
-    async def respond(self, prompt: str, traceparent: str) -> str:
-        return f"Offline demo response: {prompt}"
-
-
-class HostedGatewayAgent:
-    def __init__(self, *, model_client: Any | None = None, catalog_client: GatewayJsonRpcToolClient | None = None, records_client: GatewayJsonRpcToolClient | None = None, selection: GatewaySelection | None = None) -> None:
-        self.profile = load_profile()
-        self.selection = selection or resolve_gateway()
-        self.model_client = model_client or OfflineModelClient()
-        self.catalog_client = catalog_client or GatewayJsonRpcToolClient(self.selection.catalog_mcp_url, self.selection)
-        self.records_client = records_client or GatewayJsonRpcToolClient(self.selection.records_mcp_url, self.selection)
-        self.name = self.profile["agent"]["name"]
-
-    async def invoke(self, prompt: str, traceparent: str | None = None) -> AgentResult:
-        traceparent = make_traceparent(traceparent)
-        lower = prompt.lower()
-        calls: list[dict[str, Any]] = []
-        with genai_span("invoke_agent", **{"gen_ai.agent.name": self.name, "agent.runtime": os.environ.get("DD_AGENT_RUNTIME") or os.environ.get("AGENT_RUNTIME", "local")}):
-            if any(term in lower for term in ("stock", "availability", "available", "ready", "part", "device")):
-                tool = "search_items"
-                args: dict[str, Any] = {"query": prompt[:120]}
-                token = next((word.strip(".,;:?!") for word in prompt.split() if "-" in word), "")
-                if token:
-                    tool = "check_availability"
-                    args = {"item_id": token.upper(), "quantity": 1}
-                with genai_span("execute_tool", **{"gen_ai.tool.name": tool}):
-                    result = await self.catalog_client.call_tool(tool, args, traceparent)
-                calls.append({"service": "catalog-mcp", "tool": tool, "arguments": args, "result": result})
-                return AgentResult(f"{self.profile['labels']['items'].title()} result: {json.dumps(result, default=str)}", traceparent, calls)
-            if any(term in lower for term in ("work order", "ticket", "record", "create")):
-                tool = "list_records"
-                args = {}
-                with genai_span("execute_tool", **{"gen_ai.tool.name": tool}):
-                    result = await self.records_client.call_tool(tool, args, traceparent)
-                calls.append({"service": "records-api", "tool": tool, "arguments": args, "result": result})
-                return AgentResult(f"{self.profile['labels']['records'].title()} result: {json.dumps(result, default=str)}", traceparent, calls)
-            with genai_span("chat", **{"gen_ai.request.model": self.selection.model_deployment}):
-                text = await self.model_client.respond(f"{self.profile['agent']['instructions']}\n\nUser: {prompt}", traceparent)
-            return AgentResult(text, traceparent, calls)
-
-
-async def build_langgraph_agent() -> Any:
-    from langchain.agents import create_agent
-    from langchain_mcp_adapters.client import MultiServerMCPClient
-    from langchain_openai import ChatOpenAI
-
+def build_agent(selection: GatewaySelection | None = None) -> Any:
+    """Build the LangChain agent graph without any network I/O."""
     profile = load_profile()
-    selection = resolve_gateway()
+    selection = selection or resolve_gateway()
     model = ChatOpenAI(
         model=selection.model_deployment,
         base_url=selection.model_base_url_with_slash,
-        api_key=selection.api_key,
-        default_headers=selection.default_headers,
+        api_key=PLACEHOLDER_API_KEY,
+        http_async_client=build_http_client(selection),
         use_responses_api=True,
         output_version="responses/v1",
+        store=False,
     )
-    client = MultiServerMCPClient(
-        {
-            "catalog": {"transport": "streamable_http", "url": selection.catalog_mcp_url, "headers": gateway_headers(selection)},
-            "records": {"transport": "streamable_http", "url": selection.records_mcp_url, "headers": gateway_headers(selection)},
-        }
+    servers = {
+        name: {"transport": "streamable_http", "url": url, "auth": GatewayAuth(selection), "timeout": 30}
+        for name, url in (("catalog", selection.catalog_mcp_url), ("records", selection.records_mcp_url))
+        if url
+    }
+    return create_agent(
+        model,
+        tools=[],
+        system_prompt=profile["agent"]["instructions"],
+        name=profile["agent"]["name"],
+        middleware=[LazyMcpToolsMiddleware(servers)] if servers else [],
     )
-    tools = await client.get_tools()
-    return create_agent(model=model, tools=tools, system_prompt=profile["agent"]["instructions"])

@@ -1,9 +1,11 @@
-// Private-mode BYO dependencies for Microsoft Foundry standard private-networking setup.
+// Private-mode BYO dependencies for Microsoft Foundry standard private-networking setup:
+// Cosmos DB (thread storage), Storage (files), AI Search (vector store), each behind a private endpoint + DNS zone group.
 param location string
 param tags object = {}
 param namePrefix string
-param vnetId string
 param privateEndpointSubnetId string
+@description('Private DNS zone ids from private-dns.bicep; uses the blob, search and cosmos zones.')
+param dnsZoneIds object
 
 var suffix = uniqueString(resourceGroup().id, namePrefix)
 var storageName = take('st${replace(namePrefix, '-', '')}${suffix}', 24)
@@ -69,68 +71,47 @@ resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = {
   }
 }
 
-resource storageBlobPe 'Microsoft.Network/privateEndpoints@2024-05-01' = {
+module storageBlobPe 'private-endpoint.bicep' = {
   name: 'pe-${storage.name}-blob'
-  location: location
-  tags: tags
-  properties: {
-    subnet: {
-      id: privateEndpointSubnetId
-    }
-    privateLinkServiceConnections: [
-      {
-        name: 'blob'
-        properties: {
-          privateLinkServiceId: storage.id
-          groupIds: [
-            'blob'
-          ]
-        }
-      }
+  params: {
+    location: location
+    tags: tags
+    name: 'pe-${storage.name}-blob'
+    subnetId: privateEndpointSubnetId
+    privateLinkServiceId: storage.id
+    groupId: 'blob'
+    dnsZoneIds: [
+      dnsZoneIds.blob
     ]
   }
 }
 
-resource searchPe 'Microsoft.Network/privateEndpoints@2024-05-01' = {
+module searchPe 'private-endpoint.bicep' = {
   name: 'pe-${search.name}'
-  location: location
-  tags: tags
-  properties: {
-    subnet: {
-      id: privateEndpointSubnetId
-    }
-    privateLinkServiceConnections: [
-      {
-        name: 'search'
-        properties: {
-          privateLinkServiceId: search.id
-          groupIds: [
-            'searchService'
-          ]
-        }
-      }
+  params: {
+    location: location
+    tags: tags
+    name: 'pe-${search.name}'
+    subnetId: privateEndpointSubnetId
+    privateLinkServiceId: search.id
+    groupId: 'searchService'
+    dnsZoneIds: [
+      dnsZoneIds.search
     ]
   }
 }
 
-resource cosmosPe 'Microsoft.Network/privateEndpoints@2024-05-01' = {
+module cosmosPe 'private-endpoint.bicep' = {
   name: 'pe-${cosmos.name}'
-  location: location
-  tags: tags
-  properties: {
-    subnet: {
-      id: privateEndpointSubnetId
-    }
-    privateLinkServiceConnections: [
-      {
-        name: 'cosmos'
-        properties: {
-          privateLinkServiceId: cosmos.id
-          groupIds: [
-            'Sql'
-          ]
-        }
-      }
+  params: {
+    location: location
+    tags: tags
+    name: 'pe-${cosmos.name}'
+    subnetId: privateEndpointSubnetId
+    privateLinkServiceId: cosmos.id
+    groupId: 'Sql'
+    dnsZoneIds: [
+      dnsZoneIds.cosmos
     ]
   }
 }

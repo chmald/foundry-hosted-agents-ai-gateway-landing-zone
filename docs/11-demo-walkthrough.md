@@ -13,7 +13,7 @@
   <img src="./assets/icons/workbooks.svg" width="40" alt="Workbooks"/>
 </p>
 
-![GA](./assets/badges/ga.svg) ![Preview](./assets/badges/preview.svg) ![Static only](./assets/badges/static-only.svg)
+![GA](./assets/badges/ga.svg) ![Preview](./assets/badges/preview.svg) ![live-tested](./assets/badges/live-tested.svg) ![version](./assets/badges/version.svg)
 
 A customer-shareable script for the hosted-agent and AI gateway landing zone. The story runs as a **matrix**: two agent frameworks (Microsoft Agent Framework and LangGraph) against two gateway targets (APIM v2 and the AI Gateway tier), through five steps, **S1 to S5**, that end in the audit trail.
 
@@ -24,7 +24,7 @@ A customer-shareable script for the hosted-agent and AI gateway landing zone. Th
 | <img src="./assets/icons/foundry-agent-service.svg" width="24" alt=""/> | **Audience** | Platform, security and application owners deciding how to govern agents. |
 | <img src="./assets/icons/code.svg" width="24" alt=""/> | **Driver** | `scripts/demo_walkthrough.py`, with `--dry-run` for rehearsal and `--step` to jump to a segment. |
 | <img src="./assets/icons/log-analytics.svg" width="24" alt=""/> | **Closing proof** | Audit query 01 and trace query 04 in Log Analytics ([doc 09](./09-monitoring-and-audit.md)). |
-| <img src="./assets/icons/ai-gateway.svg" width="24" alt=""/> | **Preview lane** | AI Gateway tier steps are ![Preview](./assets/badges/preview.svg); present them as a comparison, not a recommendation. |
+| <img src="./assets/icons/ai-gateway.svg" width="24" alt=""/> | **Preview lane** | AI Gateway tier steps are ![Public preview](./assets/badges/public-preview.svg) and were run live on 2026-10-02; present them as a comparison, not a recommendation. |
 
 ## The story
 
@@ -44,22 +44,22 @@ About 40 minutes with questions. Skip S4 to get to 30.
 | **S3 Tools / MCP** | 8 min | <img src="./assets/icons/toolbox.svg" width="24" alt=""/> | A governed tool call, a record created through a REST-as-MCP route, a denied tool. | MCP log rows for `check_availability`; a refused call outside the allow-list. |
 | **S4 Scale / posture** | 6 min | <img src="./assets/icons/virtual-network.svg" width="24" alt=""/> | A token-limit loop until the gateway returns `429`; the network-isolation diagram. | The `429` and the [network topology](./10-enterprise-posture-and-scale.md#the-network-path). |
 | **S5 Observability** | 8 min | <img src="./assets/icons/log-analytics.svg" width="24" alt=""/> | The audit query, the trace query, the workbook and the alert. | Query 01 and query 04 results; the workbook tiles. |
-| **Close** | 2 min | <img src="./assets/icons/policy.svg" width="24" alt=""/> | Preview versus GA, and next steps. | The status table in the [README](../README.md). |
+| **Close** | 2 min | <img src="./assets/icons/policy.svg" width="24" alt=""/> | Preview versus GA (![GA](./assets/badges/ga.svg) vs ![Public preview](./assets/badges/public-preview.svg)), and next steps. | The status table in the [README](../README.md). |
 
 > [!TIP]
 > Open S5 in Log Analytics **before** the session starts and run query 01 once so the workspace is warm. Query results lag ingestion by a few minutes; do not rely on records from the call you just made.
 
 ## The agent by gateway matrix
 
-Each cell is one rehearsal command. Dry-run is verified; live runs are tracked in the [live evidence](#live-evidence-2026-10-01) section.
+Each cell is one rehearsal command. Dry-run and live runs are both verified; results are in the [live evidence](#live-evidence) section.
 
 | Agent | Gateway | Dry run | Live |
 |---|---|---|---|
-| <img src="./assets/icons/foundry-agent-service.svg" width="20" alt=""/> **MAF** | <img src="./assets/icons/api-management.svg" width="20" alt=""/> APIM v2 | ✅ `python scripts/demo_walkthrough.py --ids demo-ids.local.json --agent maf --gateway apimv2 --dry-run` | ⏳ |
-| <img src="./assets/icons/foundry-agent-service.svg" width="20" alt=""/> **LangGraph** | <img src="./assets/icons/api-management.svg" width="20" alt=""/> APIM v2 | ✅ `python scripts/demo_walkthrough.py --ids demo-ids.local.json --agent langgraph --gateway apimv2 --dry-run` | ⏳ |
-| <img src="./assets/icons/foundry-agent-service.svg" width="20" alt=""/> **MAF** | <img src="./assets/icons/ai-gateway.svg" width="20" alt=""/> AI Gateway tier ![Preview](./assets/badges/preview.svg) | ✅ `python scripts/demo_walkthrough.py --ids demo-ids.local.json --agent maf --gateway aigateway --dry-run` | ⏳ |
-| <img src="./assets/icons/foundry-agent-service.svg" width="20" alt=""/> **LangGraph** | <img src="./assets/icons/ai-gateway.svg" width="20" alt=""/> AI Gateway tier ![Preview](./assets/badges/preview.svg) | ✅ `python scripts/demo_walkthrough.py --ids demo-ids.local.json --agent langgraph --gateway aigateway --dry-run` | ⏳ |
-| **Both agents** | Selected gateway | ✅ `python scripts/demo_walkthrough.py --ids demo-ids.local.json --agent both --gateway apimv2 --dry-run`; repeat with `aigateway` | ⏳ |
+| <img src="./assets/icons/foundry-agent-service.svg" width="20" alt=""/> **MAF** | <img src="./assets/icons/api-management.svg" width="20" alt=""/> APIM v2 | ✅ `python scripts/demo_walkthrough.py --ids demo-ids.local.json --agent maf --gateway apimv2 --dry-run` | ✅ |
+| <img src="./assets/icons/foundry-agent-service.svg" width="20" alt=""/> **LangGraph** | <img src="./assets/icons/api-management.svg" width="20" alt=""/> APIM v2 | ✅ `python scripts/demo_walkthrough.py --ids demo-ids.local.json --agent langgraph --gateway apimv2 --dry-run` | ✅ |
+| <img src="./assets/icons/foundry-agent-service.svg" width="20" alt=""/> **MAF** | <img src="./assets/icons/ai-gateway.svg" width="20" alt=""/> AI Gateway tier ![Preview](./assets/badges/preview.svg) | ✅ `python scripts/demo_walkthrough.py --ids demo-ids.local.json --agent maf --gateway aigateway --dry-run` | ✅ |
+| <img src="./assets/icons/foundry-agent-service.svg" width="20" alt=""/> **LangGraph** | <img src="./assets/icons/ai-gateway.svg" width="20" alt=""/> AI Gateway tier ![Preview](./assets/badges/preview.svg) | ✅ `python scripts/demo_walkthrough.py --ids demo-ids.local.json --agent langgraph --gateway aigateway --dry-run` | ✅ |
+| **Both agents** | Selected gateway | ✅ `python scripts/demo_walkthrough.py --ids demo-ids.local.json --agent both --gateway apimv2 --dry-run`; repeat with `aigateway` | ✅ |
 
 ## Walkthrough steps
 
@@ -67,7 +67,7 @@ Each cell is one rehearsal command. Dry-run is verified; live runs are tracked i
 
 | Step | | Action | Validation |
 |---|---|---|---|
-| 1 | <img src="./assets/icons/foundry-agent-service.svg" width="28" alt=""/> | Run `python scripts/demo_walkthrough.py --ids demo-ids.local.json --agent both --gateway apimv2 --step S1`. The prompt asks the agent to check readiness and say which governed tools it can use. | - [ ] `agent-maf` and `agent-langgraph` both accept the Responses contract (`GET /readiness`, `POST /responses`, `POST /invocations`). |
+| 1 | <img src="./assets/icons/foundry-agent-service.svg" width="28" alt=""/> | Run `python scripts/demo_walkthrough.py --ids demo-ids.local.json --agent both --gateway apimv2 --step S1`. The prompt asks the agent to check readiness and say which governed tools it can use. | - [ ] `agent-maf` and `agent-langgraph` both accept the Responses contract (`GET /readiness`, `POST /responses`). |
 | 2 | <img src="./assets/icons/container-apps.svg" width="28" alt=""/> | Optional: show the same image on Container Apps (`DEPLOY_AGENT_ON_ACA=true`). | - [ ] The hosted and Container Apps runtimes give the same answer. |
 
 **Expected result:** two frameworks, one contract. **Proof:** App Insights traces, or the constructed endpoint in dry-run.
@@ -112,16 +112,16 @@ Each cell is one rehearsal command. Dry-run is verified; live runs are tracked i
 | 2 | <img src="./assets/icons/application-insights.svg" width="28" alt=""/> | Re-run with `--query 04 --trace-id <id>` using the trace id from S2. | - [ ] The agent, gateway and tool spans for that trace appear together. |
 | 3 | <img src="./assets/icons/workbooks.svg" width="28" alt=""/> | Open the workbook, then show the alert rule. | - [ ] The call volume, denials and token usage tiles are populated. |
 
-**Expected result:** query 01 and the trace query answer the audit story; query 11 reconciles AI Gateway tier telemetry. **Proof:** Log Analytics and the workbook ([doc 09](./09-monitoring-and-audit.md#the-saved-queries)).
+**Expected result:** query 01 and the trace query answer the audit story; query 11 compares AI Gateway tier telemetry (`AppRequests`) with the APIM LLM log. **Proof:** Log Analytics and the workbook ([doc 09](./09-monitoring-and-audit.md#the-saved-queries)).
 
 ## Presenter notes
 
 | | Moment | Say this | Avoid saying |
 |---|---|---|---|
-| <img src="./assets/icons/ai-gateway.svg" width="20" alt=""/> | **Gateway comparison** | "APIM v2 is the safe default; the AI Gateway tier is a preview side lane for learning and comparison." | "The preview tier has the same identity guarantees as APIM token validation." |
-| <img src="./assets/icons/foundry-agent-service.svg" width="20" alt=""/> | **Framework comparison** | "The two agents use different host packages but the same gateway and audit contract." | "Hosted agents require one specific SDK." |
+| <img src="./assets/icons/ai-gateway.svg" width="20" alt=""/> | **Gateway comparison** ![Public preview](./assets/badges/public-preview.svg) | "APIM v2 is the safe default; the AI Gateway tier is a preview side lane that we ran live for comparison." | "The preview tier has the same identity guarantees as APIM token validation." |
+| <img src="./assets/icons/foundry-agent-service.svg" width="20" alt=""/> | **Framework comparison** | "The two agents use different official host packages (`ResponsesHostServer` from Agent Framework and from `langchain-azure-ai`) but the same gateway and audit contract." | "Hosted agents require one specific SDK." |
 | <img src="./assets/icons/entra-workload-id.svg" width="20" alt=""/> | **Identity** | "Runtime keys prove possession of a gateway key; they do not identify a human or agent principal." | "The key is the agent identity." |
-| <img src="./assets/icons/log-analytics.svg" width="20" alt=""/> | **Monitoring** | "Query 11 is where preview telemetry gets reconciled after live deployment." | "All GenAI columns are final." |
+| <img src="./assets/icons/log-analytics.svg" width="20" alt=""/> | **Monitoring** | "The AI Gateway tier writes its LLM and MCP calls to `AppRequests`, not the LLM log; query 11 puts both lanes side by side." | "The tier writes `ApiManagementGatewayLlmLog` rows." |
 
 > [!CAUTION]
 > **Do not show** the **Visual Workflow** canvas (retiring 2026-12-01) or the classic **Assistants API** (threads and runs). The demo is built on the current hosted-agent Responses contract; showing retiring surfaces invites the wrong follow-up questions.
@@ -149,10 +149,26 @@ Step values are `S1` to `S5` and `smoke`. Defaults are `--agent maf` and `--gate
 
 </details>
 
-## Live evidence (2026-10-01)
+## Live evidence
 
-> [!NOTE]
-> ⏳ **Pending.** Live results for the agent by gateway matrix will be added here after the live validation run completes.
+![live-tested](./assets/badges/live-tested.svg) for **both gateway lanes** and **both agents**. Run `fhagl1002` on 2026-10-02 in `eastus2`; details and defects in [04 - Testing](./04-testing.md#live-validation-2026-10-02).
+
+[![Pass/fail matrix for walkthrough steps S1 to S5, by agent host and gateway lane](./assets/evidence/pass-fail-matrix.png)](./assets/evidence/pass-fail-matrix.png)
+
+*Source: live run 2026-10-02, eastus2.*
+
+| Agent (host) | Gateway | S1 | S2 | S3 | S4 | S5 |
+|---|---|---|---|---|---|---|
+| Microsoft Agent Framework (official `ResponsesHostServer`) | APIM Standard v2 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| LangGraph (official `ResponsesHostServer`) | APIM Standard v2 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Microsoft Agent Framework | AI Gateway tier ![Public preview](./assets/badges/public-preview.svg) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| LangGraph | AI Gateway tier ![Public preview](./assets/badges/public-preview.svg) | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+> [!TIP]
+> **Presenter guidance - what is proven live and what is not.**
+> - **Safe to say live:** both agents complete S1-S5 through both gateways; unauthenticated calls get 401; the throttle probe returns 429 (183 of 240 calls throttled on the tier); tool and model calls appear in the audit queries ([09](./09-monitoring-and-audit.md#live-evidence)).
+> - **Say as design intent, not as demonstrated:** network isolation mode (what-if validated only), the `postdeploy` RBAC hook (the grant was done by hand in the run) and the other tier policy cards beyond the 429 probe.
+> - If asked about the agent's identity, say the runtime principal is the hosted agent's **instance identity** ([07](./07-identity-auth-traceability.md#the-runtime-principal-is-the-instance-identity)), and that the tier lane needs it to read the runtime key from Key Vault (or `AIGW_KEY_DELIVERY=env` under a Key Vault network policy).
 
 Next: [12 - Configuration reference](./12-configuration-reference.md) →
 

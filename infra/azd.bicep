@@ -45,6 +45,8 @@ param agentSubnetPrefix string = '10.40.0.0/24'
 param acaSubnetPrefix string = '10.40.2.0/23'
 param apimSubnetPrefix string = '10.40.4.0/27'
 param peSubnetPrefix string = '10.40.5.0/24'
+param aigwSubnetPrefix string = '10.40.6.0/27'
+param aigwInboundPrivateEndpoint bool = true
 
 param modelName string = 'gpt-5.5'
 param modelVersion string = '2026-04-24'
@@ -101,6 +103,8 @@ module main 'main.bicep' = {
     acaSubnetPrefix: acaSubnetPrefix
     apimSubnetPrefix: apimSubnetPrefix
     peSubnetPrefix: peSubnetPrefix
+    aigwSubnetPrefix: aigwSubnetPrefix
+    aigwInboundPrivateEndpoint: aigwInboundPrivateEndpoint
     modelName: modelName
     modelVersion: modelVersion
     modelDeploymentName: modelDeploymentName
@@ -122,6 +126,8 @@ output AZURE_RESOURCE_GROUP string = rg.name
 output FOUNDRY_ACCOUNT_NAME string = main.outputs.FOUNDRY_ACCOUNT_NAME
 output FOUNDRY_PROJECT_NAME string = main.outputs.FOUNDRY_PROJECT_NAME
 output FOUNDRY_PROJECT_ENDPOINT string = main.outputs.FOUNDRY_PROJECT_ENDPOINT
+output AZURE_AI_PROJECT_ID string = main.outputs.AZURE_AI_PROJECT_ID
+output AZURE_AI_PROJECT_ENDPOINT string = main.outputs.AZURE_AI_PROJECT_ENDPOINT
 output MODEL_DEPLOYMENT_NAME string = main.outputs.MODEL_DEPLOYMENT_NAME
 output AZURE_CONTAINER_REGISTRY_ENDPOINT string = main.outputs.AZURE_CONTAINER_REGISTRY_ENDPOINT
 output CONTAINER_APPS_ENVIRONMENT_NAME string = main.outputs.CONTAINER_APPS_ENVIRONMENT_NAME
@@ -147,4 +153,5 @@ output WORKBOOK_ID string = main.outputs.WORKBOOK_ID
 output QUERY_PACK_ID string = main.outputs.QUERY_PACK_ID
 output KEY_VAULT_NAME string = main.outputs.KEY_VAULT_NAME
 output KEY_VAULT_URI string = main.outputs.KEY_VAULT_URI
+output AIGW_RUNTIME_KEY_SECRET_NAME string = main.outputs.AIGW_RUNTIME_KEY_SECRET_NAME
 output VNET_ID string = main.outputs.VNET_ID

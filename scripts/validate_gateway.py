@@ -111,12 +111,16 @@ def main() -> int:
     parser.add_argument("--aigw-key")
     parser.add_argument("--aigw-key-env", default="AIGW_RUNTIME_KEY")
     parser.add_argument("--aigw-secret-name")
-    parser.add_argument("--catalog-tool", default="list_items")
-    parser.add_argument("--records-tool", default="list_records")
+    parser.add_argument("--catalog-tool")
+    parser.add_argument("--records-tool")
     parser.add_argument("--assert-401", action="store_true")
     parser.add_argument("--probe-429", action="store_true")
-    parser.add_argument("--max-429-attempts", type=int, default=25)
+    parser.add_argument("--max-429-attempts", type=int, default=240)
     args = parser.parse_args()
+    # The AI Gateway tier prefixes each tool with its tool-server name; APIM exposes the backend names.
+    default_catalog, default_records = ("catalog_list_items", "records_list_records") if args.target == "aigateway" else ("list_items", "list_records")
+    args.catalog_tool = args.catalog_tool or default_catalog
+    args.records_tool = args.records_tool or default_records
 
     ids = load_ids(Path(args.ids))
     llm_url, mcp_json, headers = resolve_target(args, ids)
@@ -133,14 +137,19 @@ def main() -> int:
     checks.extend(check_mcp("records", mcp_urls["records"], headers, args.records_tool))
 
     if args.probe_429:
-        status = "not_observed"
-        for _ in range(args.max_429_attempts):
-            probe = httpx.post(llm_url, json={"model": ids.get("modelDeploymentName", "chat"), "input": "short probe", "stream": False}, headers=headers, timeout=30)
-            if probe.status_code == 429:
-                status = "observed"
-                break
-            time.sleep(0.2)
-        checks.append(("429 probe", status == "observed", status))
+        # Burst concurrently: sequential LLM calls are too slow to exceed a per-minute request limit.
+        from concurrent.futures import ThreadPoolExecutor
+
+        def one_probe(_: int) -> int:
+            try:
+                return httpx.post(llm_url, json={"model": ids.get("modelDeploymentName", "chat"), "input": "ok", "max_output_tokens": 16, "stream": False}, headers=headers, timeout=60).status_code
+            except httpx.HTTPError:
+                return 0
+
+        with ThreadPoolExecutor(max_workers=24) as pool:
+            codes = list(pool.map(one_probe, range(args.max_429_attempts)))
+        status = "observed" if 429 in codes else "not_observed"
+        checks.append(("429 probe", status == "observed", f"{status} (requests={len(codes)}, 429s={codes.count(429)}, 2xx={sum(1 for c in codes if 200 <= c < 300)})"))
 
     print(json.dumps({"target": args.target, "traceparent": headers["traceparent"], "trace_id": headers["traceparent"].split("-")[1], "checks": [{"name": n, "passed": p, "detail": d} for n, p, d in checks]}, indent=2))
     return 0 if all(passed for _, passed, _ in checks) else 1

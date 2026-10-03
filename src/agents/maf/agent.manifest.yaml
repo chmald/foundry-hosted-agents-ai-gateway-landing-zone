@@ -16,7 +16,7 @@ template:
   environment_variables:
     - name: MODEL_DEPLOYMENT_NAME
       value: "{{MODEL_DEPLOYMENT_NAME}}"
-    - name: AGENT_DEFAULT_GATEWAY
+    - name: HOSTED_DEFAULT_GATEWAY
       value: "{{AGENT_DEFAULT_GATEWAY}}"
 resources:
   - kind: model

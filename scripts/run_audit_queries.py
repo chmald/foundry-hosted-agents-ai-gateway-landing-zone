@@ -2,7 +2,9 @@
 from __future__ import annotations
 import argparse, os
 import json
+import re
 import subprocess
+import sys
 import time
 from pathlib import Path
 from azure.core.credentials import AccessToken
@@ -19,6 +21,7 @@ class AzCliCredential:
         data=json.loads(token.stdout)
         return AccessToken(data["accessToken"], int(time.time()) + 3000)
 def main():
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     p=argparse.ArgumentParser(); p.add_argument("--ids",default=str(ROOT/"demo-ids.local.json")); p.add_argument("--workspace-id"); p.add_argument("--query",default="01"); p.add_argument("--trace-id"); a=p.parse_args(); ids=load_ids(Path(a.ids)); wid=a.workspace_id or ids.get("logAnalyticsCustomerId") or os.environ.get("LOG_ANALYTICS_CUSTOMER_ID")
     if not wid: raise SystemExit("LOG_ANALYTICS_CUSTOMER_ID is required")
     files=sorted(QUERY_DIR.glob("*.kql")); files=files if a.query=="all" else [x for x in files if x.name.startswith(f"{a.query}-")]
@@ -31,7 +34,9 @@ def main():
     client=LogsQueryClient(credential)
     for path in files:
         query=path.read_text();
-        if path.name.startswith("04-") and a.trace_id: query=query.replace("{traceId}", a.trace_id)
+        if path.name.startswith("04-") and a.trace_id:
+            if not re.fullmatch(r"[0-9A-Za-z-]+", a.trace_id): raise SystemExit("--trace-id must be alphanumeric/hyphen")
+            query=query.replace('traceId:string = ""', f'traceId:string = "{a.trace_id}"')
         print(f"\n## {path.name}"); result=client.query_workspace(wid, query, timespan=None)
         for table in getattr(result,"tables",[]) or []:
             print(" | ".join(table.columns)); [print(" | ".join(str(c) for c in row)) for row in table.rows]

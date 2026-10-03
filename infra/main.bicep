@@ -43,6 +43,10 @@ param agentSubnetPrefix string = '10.40.0.0/24'
 param acaSubnetPrefix string = '10.40.2.0/23'
 param apimSubnetPrefix string = '10.40.4.0/27'
 param peSubnetPrefix string = '10.40.5.0/24'
+@description('AI Gateway tier outbound VNet-integration subnet (/27 or larger, delegated Microsoft.Web/serverFarms).')
+param aigwSubnetPrefix string = '10.40.6.0/27'
+@description('When isolated, also create the AI Gateway tier inbound private endpoint (preview feature; set false to skip).')
+param aigwInboundPrivateEndpoint bool = true
 
 param modelName string = 'gpt-5.5'
 param modelVersion string = '2026-04-24'
@@ -82,6 +86,8 @@ var aiGatewayName = take('aigw-${normalized}-${shortSuffix}', 50)
 var llmApiPath = 'llm'
 var deployApimV2Gateway = aiGatewayMode == 'apimv2' || aiGatewayMode == 'both'
 var deployAiGatewayTier = aiGatewayMode == 'aigateway' || aiGatewayMode == 'both'
+// Outbound VNet integration must be in the same region as the VNet; the AI Gateway tier is only offered in two regions.
+var aigwOutboundIntegration = networkIsolation && aiGatewayTierLocation == location
 
 module monitoring 'modules/monitoring.bicep' = {
   name: 'monitoring'
@@ -105,6 +111,16 @@ module network 'modules/network.bicep' = if (networkIsolation) {
     acaSubnetPrefix: acaSubnetPrefix
     apimSubnetPrefix: apimSubnetPrefix
     peSubnetPrefix: peSubnetPrefix
+    aigwSubnetPrefix: aigwSubnetPrefix
+  }
+}
+
+module privateDns 'modules/private-dns.bicep' = if (networkIsolation) {
+  name: 'private-dns'
+  params: {
+    tags: tags
+    vnetId: network.outputs.vnetId
+    namePrefix: normalized
   }
 }
 
@@ -127,8 +143,8 @@ module privateFoundryDependencies 'modules/foundry-private.bicep' = if (networkI
     location: location
     tags: tags
     namePrefix: normalized
-    vnetId: network.outputs.vnetId
     privateEndpointSubnetId: network.outputs.privateEndpointSubnetId
+    dnsZoneIds: privateDns.outputs.zoneIds
   }
 }
 
@@ -150,9 +166,81 @@ module foundry 'modules/foundry.bicep' = {
     appInsightsConnectionString: monitoring.outputs.appInsightsConnectionString
     containerRegistryName: acrName
     networkIsolation: networkIsolation
-    byoCosmosDbResourceId: networkIsolation ? privateFoundryDependencies.outputs.cosmosDbResourceId : ''
-    byoStorageAccountResourceId: networkIsolation ? privateFoundryDependencies.outputs.storageAccountResourceId : ''
-    byoSearchServiceResourceId: networkIsolation ? privateFoundryDependencies.outputs.searchServiceResourceId : ''
+    agentSubnetId: networkIsolation ? network.outputs.agentSubnetId : ''
+  }
+}
+
+// Private endpoints for the control-plane-created PaaS resources (Foundry account, Key Vault, ACR).
+module foundryPe 'modules/private-endpoint.bicep' = if (networkIsolation) {
+  name: 'pe-foundry'
+  params: {
+    location: location
+    tags: tags
+    name: 'pe-${foundryAccountName}'
+    subnetId: network.outputs.privateEndpointSubnetId
+    privateLinkServiceId: foundry.outputs.aiServicesId
+    groupId: 'account'
+    dnsZoneIds: [
+      privateDns.outputs.zoneIds.cognitiveServices
+      privateDns.outputs.zoneIds.openAi
+      privateDns.outputs.zoneIds.servicesAi
+    ]
+  }
+}
+
+module keyVaultPe 'modules/private-endpoint.bicep' = if (networkIsolation) {
+  name: 'pe-keyvault'
+  params: {
+    location: location
+    tags: tags
+    name: 'pe-${keyVaultName}'
+    subnetId: network.outputs.privateEndpointSubnetId
+    privateLinkServiceId: keyvault.outputs.keyVaultId
+    groupId: 'vault'
+    dnsZoneIds: [
+      privateDns.outputs.zoneIds.keyVault
+    ]
+  }
+}
+
+module acrPe 'modules/private-endpoint.bicep' = if (networkIsolation) {
+  name: 'pe-acr'
+  params: {
+    location: location
+    tags: tags
+    name: 'pe-${acrName}'
+    subnetId: network.outputs.privateEndpointSubnetId
+    privateLinkServiceId: foundry.outputs.containerRegistryId
+    groupId: 'registry'
+    dnsZoneIds: [
+      privateDns.outputs.zoneIds.acr
+    ]
+  }
+}
+
+// Foundry standard agent setup (BYO Cosmos/Storage/Search): connections + capability host after PEs/DNS exist.
+module foundryAgentByo 'modules/foundry-agent-byo.bicep' = if (networkIsolation) {
+  name: 'foundry-agent-byo'
+  params: {
+    accountName: foundryAccountName
+    projectName: foundryProjectName
+    projectPrincipalId: foundry.outputs.aiProjectPrincipalId
+    cosmosDbResourceId: privateFoundryDependencies.outputs.cosmosDbResourceId
+    storageAccountResourceId: privateFoundryDependencies.outputs.storageAccountResourceId
+    searchServiceResourceId: privateFoundryDependencies.outputs.searchServiceResourceId
+  }
+  dependsOn: [
+    foundryPe
+  ]
+}
+
+module foundryAgentByoPost 'modules/foundry-agent-byo-post.bicep' = if (networkIsolation) {
+  name: 'foundry-agent-byo-post'
+  params: {
+    projectPrincipalId: foundry.outputs.aiProjectPrincipalId
+    storageAccountResourceId: privateFoundryDependencies.outputs.storageAccountResourceId
+    cosmosDbResourceId: privateFoundryDependencies.outputs.cosmosDbResourceId
+    projectWorkspaceId: foundryAgentByo.outputs.projectWorkspaceId
   }
 }
 
@@ -174,7 +262,18 @@ module containerApps 'modules/container-apps.bicep' = {
   }
 }
 
-module gatewayApim 'modules/gateway-apimv2.bicep' = if (deployApimV2Gateway) {
+// Internal ACA environment: resolve its default domain from the VNet (APIM / AI Gateway backends are ACA FQDNs).
+module acaPrivateDns 'modules/aca-private-dns.bicep' = if (networkIsolation) {
+  name: 'aca-private-dns'
+  params: {
+    tags: tags
+    vnetId: network.outputs.vnetId
+    defaultDomain: containerApps.outputs.defaultDomain
+    staticIp: containerApps.outputs.staticIp
+  }
+}
+
+module gatewayApim  'modules/gateway-apimv2.bicep' = if (deployApimV2Gateway) {
   name: 'gateway-apimv2'
   params: {
     location: location
@@ -206,10 +305,14 @@ module gatewayAi 'modules/gateway-aigateway.bicep' = if (deployAiGatewayTier) {
     location: aiGatewayTierLocation
     tags: tags
     gatewayName: aiGatewayName
+    publisherEmail: apimPublisherEmail
+    publisherName: apimPublisherName
     foundryEndpoint: foundry.outputs.aiServicesEndpoint
     foundryAccountResourceId: foundry.outputs.aiServicesId
     modelDeploymentResourceId: foundry.outputs.modelDeploymentId
     modelDeploymentName: modelDeploymentName
+    modelName: modelName
+    modelVersion: modelVersion
     tokenLimitTpmPerAgent: tokenLimitTpmPerAgent
     requestLimitRpm: aigwRequestLimitRpm
     enableContentSafety: enableContentSafety
@@ -217,8 +320,44 @@ module gatewayAi 'modules/gateway-aigateway.bicep' = if (deployAiGatewayTier) {
     recordsApiBackendUrl: 'https://${containerApps.outputs.recordsApiFqdn}'
     appInsightsId: monitoring.outputs.appInsightsId
     appInsightsConnectionString: monitoring.outputs.appInsightsConnectionString
+    logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
     keyVaultName: keyvault.outputs.keyVaultName
     runtimeKeySecretName: aigwRuntimeKeySecretName
+    networkIsolation: aigwOutboundIntegration
+    outboundSubnetId: aigwOutboundIntegration ? network.outputs.aigwSubnetId : ''
+  }
+}
+
+// APIM Standard v2 / Premium v2 inbound private endpoint (Gateway group). Public access is left Enabled because it can
+// only be disabled after the PE exists; the post-provision hook prints the lockdown step.
+module apimPe 'modules/private-endpoint.bicep' = if (networkIsolation && deployApimV2Gateway) {
+  name: 'pe-apim'
+  params: {
+    location: location
+    tags: tags
+    name: 'pe-${apimName}'
+    subnetId: network.outputs.privateEndpointSubnetId
+    privateLinkServiceId: gatewayApim.outputs.apimResourceId
+    groupId: 'Gateway'
+    dnsZoneIds: [
+      privateDns.outputs.zoneIds.apim
+    ]
+  }
+}
+
+// AI Gateway tier inbound Private Link (preview): same Gateway group; cannot be proven by what-if.
+module aigwPe 'modules/private-endpoint.bicep' = if (networkIsolation && deployAiGatewayTier && aigwInboundPrivateEndpoint) {
+  name: 'pe-aigw'
+  params: {
+    location: location
+    tags: tags
+    name: 'pe-${aiGatewayName}'
+    subnetId: network.outputs.privateEndpointSubnetId
+    privateLinkServiceId: gatewayAi.outputs.gatewayResourceId
+    groupId: 'Gateway'
+    dnsZoneIds: [
+      privateDns.outputs.zoneIds.apim
+    ]
   }
 }
 
@@ -323,6 +462,8 @@ module activityLog 'modules/activity-log.bicep' = if (enableActivityLogExport) {
 output FOUNDRY_ACCOUNT_NAME string = foundry.outputs.aiServicesName
 output FOUNDRY_PROJECT_NAME string = foundry.outputs.aiProjectName
 output FOUNDRY_PROJECT_ENDPOINT string = foundry.outputs.projectEndpoint
+output AZURE_AI_PROJECT_ID string = foundry.outputs.aiProjectResourceId
+output AZURE_AI_PROJECT_ENDPOINT string = foundry.outputs.projectEndpoint
 output MODEL_DEPLOYMENT_NAME string = modelDeploymentName
 output AZURE_CONTAINER_REGISTRY_ENDPOINT string = foundry.outputs.containerRegistryEndpoint
 output CONTAINER_APPS_ENVIRONMENT_NAME string = containerApps.outputs.environmentName
@@ -348,4 +489,6 @@ output WORKBOOK_ID string = workbook.outputs.workbookId
 output QUERY_PACK_ID string = querypack.outputs.queryPackId
 output KEY_VAULT_NAME string = keyvault.outputs.keyVaultName
 output KEY_VAULT_URI string = keyvault.outputs.keyVaultUri
+output AIGW_RUNTIME_KEY_SECRET_NAME string = aigwRuntimeKeySecretName
 output VNET_ID string = networkIsolation ? network.outputs.vnetId : ''
+output ACR_NAME string = acrName

@@ -12,9 +12,11 @@
 </p>
 
 <p>
-  <img src="./assets/badges/version.svg" alt="pattern: v1.1.0">
+  <img src="./assets/badges/version.svg" alt="pattern: v1.2.0">
   <img src="./assets/badges/default.svg" alt="mode: Default">
   <img src="./assets/badges/public-preview.svg" alt="status: Public preview">
+  <img src="./assets/badges/live-tested.svg" alt="validation: Live-tested">
+  <img src="./assets/badges/static-only.svg" alt="validation: Network isolation static-only">
 </p>
 
 Single-page orchestrator for standing up the **Foundry Hosted Agents + AI Gateway Landing Zone** from an empty Azure subscription. Use it for checkpoints before opening the deeper runbooks. It is written for the person who will actually run the build - a Solution Engineer or platform engineer - and every part ends with a checkpoint you can tick off.
@@ -25,21 +27,21 @@ Single-page orchestrator for standing up the **Foundry Hosted Agents + AI Gatewa
 |---|---|---|
 | <img src="./assets/icons/subscription.svg" width="24" alt=""> | **Starting point** | Empty subscription + tenant where you can register an Entra app. |
 | <img src="./assets/icons/azure-devops.svg" width="24" alt=""> | **Tooling** | Azure CLI, Azure Developer CLI (`azd`) + `azure.ai.agents` extension, PowerShell 7, Python 3.11+. |
-| <img src="./assets/icons/api-management.svg" width="24" alt=""> | **Default path** | `AI_GATEWAY_MODE=both` for validation; `AGENT_DEFAULT_GATEWAY=apimv2` first. |
+| <img src="./assets/icons/api-management.svg" width="24" alt=""> | **Default path** | `AI_GATEWAY_MODE=both` for validation; `AGENT_DEFAULT_GATEWAY=apimv2` first (the agents receive it as `HOSTED_DEFAULT_GATEWAY`). |
 | <img src="./assets/icons/foundry-agent-service.svg" width="24" alt=""> | **End state** | Two hosted agents + two tool backends behind two gateways, with audit queries returning rows. |
 | <img src="./assets/icons/cost-management.svg" width="24" alt=""> | **Time** | 4-6 hours first build; 90-150 minutes repeat build. |
 
 > [!IMPORTANT]
-> Do the checks in [02 - Prerequisites](./02-prerequisites.md) first - model quota, preview enrollment, and tenant permissions are the three things that turn a 2-hour build into a 2-day build.
+> Do the checks in [02 - Prerequisites](./02-prerequisites.md) first - model quota, the `AIGatewayPreview` feature registration, and tenant permissions are the three things that turn a 2-hour build into a 2-day build.
 
 ## Time budget
 
 | | Build type | Hands-on time | Elapsed time | Notes |
 |---|---|---:|---:|---|
-| <img src="./assets/icons/azure-devops.svg" width="20" alt=""> | **First build** | 4-6 hours | 1 business day | Includes provider registration, model quota checks, first `azd up`, hosted-agent deployment, and propagation delays. |
-| <img src="./assets/icons/azure-devops.svg" width="20" alt=""> | **Subsequent build** | 90-150 minutes | 2-3 hours | Assumes quota, providers, preview enrollment, and tenant permissions are already settled. |
-| <img src="./assets/icons/ai-gateway.svg" width="20" alt=""> | **`AI_GATEWAY_MODE=both`** | +30-60 minutes | +1-2 hours | Adds AI Gateway tier preview validation and second-pass hosted-agent deployment. |
-| <img src="./assets/icons/private-link.svg" width="20" alt=""> | **Private-network build** | +1-2 hours | +1 day if DNS/firewall approval is needed | Adds private endpoints, DNS validation, and network troubleshooting. |
+| <img src="./assets/icons/azure-devops.svg" width="20" alt=""> | **First build** | 4-6 hours | 1 business day | Includes provider and `AIGatewayPreview` feature registration, model quota checks, first `azd up`, hosted-agent deployment, and propagation delays. |
+| <img src="./assets/icons/azure-devops.svg" width="20" alt=""> | **Subsequent build** | 90-150 minutes | 2-3 hours | Assumes quota, providers, feature registration, and tenant permissions are already settled. |
+| <img src="./assets/icons/ai-gateway.svg" width="20" alt=""> | **`AI_GATEWAY_MODE=both`** <img src="./assets/badges/public-preview.svg" alt="Public preview"> | +30-60 minutes | +1-2 hours | Adds AI Gateway tier validation (about 3 minutes to provision) and second-pass hosted-agent deployment. |
+| <img src="./assets/icons/private-link.svg" width="20" alt=""> | **Private-network build** | +1-2 hours | +1 day if DNS/firewall approval is needed | Adds private endpoints, DNS validation, and network troubleshooting. <img src="./assets/badges/static-only.svg" alt="Static only"> |
 
 ## End state
 
@@ -51,11 +53,11 @@ Single-page orchestrator for standing up the **Foundry Hosted Agents + AI Gatewa
 Clients (walkthrough script, OBO sample, validate_gateway.py)
    │
    ▼
-Foundry hosted agents:  agent-maf   agent-langgraph      (responses 2.0.0, port 8088)
-   │  (AGENT_DEFAULT_GATEWAY = apimv2 | aigateway)
+Foundry hosted agents:  agent-maf   agent-langgraph      (official hosts, responses 2.0.0, port 8088)
+   │  (HOSTED_DEFAULT_GATEWAY = apimv2 | aigateway)
    ├──────────────► APIM Standard v2  ──► Foundry model (gpt-5.5)   [Entra token, llm-* policies]
    │                     └────────────► catalog-mcp / records-api   [MCP allow-list, audit headers]
-   └──────────────► AI Gateway tier    ──► Foundry model + tool servers   [api-key, preview]
+   └──────────────► AI Gateway tier    ──► Foundry model + tool servers   [api-key]
                           │
 Key Vault (runtime key) ──┘        Application Insights + Log Analytics + workbook + KQL
 ```
@@ -66,9 +68,9 @@ Key Vault (runtime key) ──┘        Application Insights + Log Analytics + 
 |---|---|---|---|
 | **A** | <img src="./assets/icons/entra-id.svg" width="24" alt=""> | Ground truth and authentication | [03 Phase 0](./03-deployment.md) |
 | **B** | <img src="./assets/icons/diagnostic-settings.svg" width="24" alt=""> | Configure both gateway paths | [12 Configuration reference](./12-configuration-reference.md) |
-| **C** | <img src="./assets/icons/container-apps.svg" width="24" alt=""> | Preview and deploy | [03 Deployment](./03-deployment.md) |
+| **C** | <img src="./assets/icons/container-apps.svg" width="24" alt=""> | Preview (what-if) and deploy <img src="./assets/badges/live-tested.svg" alt="Live-tested"> | [03 Deployment](./03-deployment.md) |
 | **D** | <img src="./assets/icons/api-management.svg" width="24" alt=""> | Validate both gateways | [04 Testing](./04-testing.md) |
-| **E** | <img src="./assets/icons/ai-gateway.svg" width="24" alt=""> | Switch hosted agents to the preview tier | [03 Deployment](./03-deployment.md) |
+| **E** | <img src="./assets/icons/ai-gateway.svg" width="24" alt=""> | Switch hosted agents to the AI Gateway tier <img src="./assets/badges/public-preview.svg" alt="Public preview"> | [03 Deployment](./03-deployment.md) |
 | **F** | <img src="./assets/icons/log-analytics.svg" width="24" alt=""> | Audit proof and regression | [09 Monitoring and audit](./09-monitoring-and-audit.md) |
 
 ### Part A - Ground truth and authentication <img src="./assets/icons/entra-id.svg" width="24" alt="">
@@ -108,7 +110,7 @@ azd env set AZURE_LOCATION $location
 
 | Step | | Action | Validation |
 |---|---|---|---|
-| **B1** | <img src="./assets/icons/ai-gateway.svg" width="24" alt="AI Gateway"> | Set `AI_GATEWAY_MODE both`, `AI_GATEWAY_TIER_LOCATION eastus2`, `AIGW_REQUEST_LIMIT_RPM`, `AIGW_RUNTIME_KEY_SECRET_NAME`. | - [ ] Tier location is `eastus2` or `swedencentral`. |
+| **B1** | <img src="./assets/icons/ai-gateway.svg" width="24" alt="AI Gateway"> | Set `AI_GATEWAY_MODE both`, `AI_GATEWAY_TIER_LOCATION eastus2`, `AIGW_REQUEST_LIMIT_RPM`, `AIGW_RUNTIME_KEY_SECRET_NAME`. <img src="./assets/badges/public-preview.svg" alt="Public preview"> | - [ ] Tier location is `eastus2` or `swedencentral`; the `AIGatewayPreview` feature is `Registered` ([02](./02-prerequisites.md#register-the-ai-gateway-preview-feature)). |
 | **B2** | <img src="./assets/icons/api-management.svg" width="24" alt="API Management"> | Set `AGENT_DEFAULT_GATEWAY apimv2`, `APIM_SKU StandardV2`, `APIM_PUBLISHER_EMAIL`. | - [ ] Publisher email is a mailbox you control. |
 | **B3** | <img src="./assets/icons/foundry-models.svg" width="24" alt="Foundry Models"> | Set the model (`gpt-5.5` `2026-04-24` `GlobalStandard`, capacity 50, deployment `chat`). | - [ ] Quota verified per [02](./02-prerequisites.md#model-availability-matrix-dated-2026-10-02). |
 | **B4** | <img src="./assets/icons/content-safety.svg" width="24" alt="Content Safety"> | Set `DOMAIN_PROFILE`, `ENABLE_LLM_MESSAGE_LOGGING`, `ENABLE_CONTENT_SAFETY`, `ENABLE_ALERTS`. | - [ ] Profile file exists under `config/profiles/`. |
@@ -141,41 +143,44 @@ azd env set ENABLE_ALERTS true
 
 | Step | | Action | Validation |
 |---|---|---|---|
-| **C1** | <img src="./assets/icons/resource-group.svg" width="24" alt="Resource group"> | `azd provision --preview` to review the what-if. | - [ ] No unexpected deletes; AI Gateway tier resources listed when mode is `aigateway`/`both`. |
-| **C2** | <img src="./assets/icons/azure-devops.svg" width="24" alt="azd"> | `azd up` provisions infra, runs hooks, deploys tools and agents. | - [ ] `demo-ids.local.json` written by `postprovision`. |
-| **C3** | <img src="./assets/icons/key-vault.svg" width="24" alt="Key Vault"> | Hook stores the `agents` runtime key in Key Vault as `AIGW_RUNTIME_KEY_SECRET_NAME`. | - [ ] Secret exists (do not print it). If the hook printed a portal fallback, follow it. |
+| **C1** | <img src="./assets/icons/resource-group.svg" width="24" alt="Resource group"> | `azd provision --preview` to review the what-if. | - [ ] No unexpected deletes; AI Gateway tier resources (`Microsoft.ApiManagement/service`, sku `AIGateway`) listed when mode is `aigateway`/`both`. |
+| **C2** | <img src="./assets/icons/azure-devops.svg" width="24" alt="azd"> | <img src="./assets/badges/live-tested.svg" alt="Live tested"> `azd up` provisions infra, runs hooks, deploys tools and agents; each agent's `postdeploy` hook grants its instance identity Key Vault Secrets User. | - [ ] `demo-ids.local.json` written by `postprovision`; the `postdeploy` summary shows `granted` or `exists`. |
+| **C3** | <img src="./assets/icons/key-vault.svg" width="24" alt="Key Vault"> | Hook stores the `agents` runtime key in Key Vault as `AIGW_RUNTIME_KEY_SECRET_NAME`. | - [ ] Secret exists (do not print it). Under a Key Vault network policy see [05](./05-troubleshooting.md#hosted-agent-gets-forbiddenbyconnection-from-key-vault). |
 
 ```powershell
 azd provision --preview
 azd up
 ```
 
-`postprovision` writes `demo-ids.local.json` and stores the AI Gateway runtime key `agents` in Key Vault as `AIGW_RUNTIME_KEY_SECRET_NAME` when the preview `listSecrets` API shape works. If not, follow the portal fallback printed by the hook.
+`postprovision` writes `demo-ids.local.json` and stores the AI Gateway runtime key `agents` in Key Vault as `AIGW_RUNTIME_KEY_SECRET_NAME` (or, with `AIGW_KEY_DELIVERY=env`, in the azd environment - a demo-only compromise, see [03](./03-deployment.md#key-delivery-and-the-postdeploy-hook)). Prerequisite: the `AIGatewayPreview` feature must be registered before `azd provision`.
 
 ### Part D - Validate both gateways <img src="./assets/icons/api-management.svg" width="24" alt="">
 
 | Step | | Action | Validation |
 |---|---|---|---|
 | **D1** | <img src="./assets/icons/api-management.svg" width="24" alt="API Management"> | Validate the default gateway (`--target apimv2`). | - [ ] Model, MCP, and REST routes answer; missing token is rejected. |
-| **D2** | <img src="./assets/icons/ai-gateway.svg" width="24" alt="AI Gateway"> | Validate the preview tier (`--target aigateway`). | - [ ] `api-key` accepted; missing key rejected. |
+| **D2** | <img src="./assets/icons/ai-gateway.svg" width="24" alt="AI Gateway"> | Validate the AI Gateway tier (`--target aigateway`, model alias `chat`). | - [ ] `api-key` accepted; missing key rejected. |
 
 ```powershell
 python scripts/validate_gateway.py --ids demo-ids.local.json --target apimv2
 python scripts/validate_gateway.py --ids demo-ids.local.json --target aigateway
 ```
 
-### Part E - Switch hosted agents to the preview tier <img src="./assets/icons/ai-gateway.svg" width="24" alt="">
+### Part E - Switch hosted agents to the AI Gateway tier <img src="./assets/icons/ai-gateway.svg" width="24" alt="">
 
 | Step | | Action | Validation |
 |---|---|---|---|
 | **E1** | <img src="./assets/icons/foundry-agent-service.svg" width="24" alt="Foundry Agent Service"> | Set `AGENT_DEFAULT_GATEWAY aigateway`; redeploy only the agents. | - [ ] `azd deploy agent-maf agent-langgraph` completes. |
-| **E2** | <img src="./assets/icons/workbooks.svg" width="24" alt="Workbooks"> | Dry-run the walkthrough against the preview tier. | - [ ] Every step resolves to the expected tool. |
+| **E2** | <img src="./assets/icons/workbooks.svg" width="24" alt="Workbooks"> | Dry-run the walkthrough against the AI Gateway tier. | - [ ] Every step resolves to the expected tool. |
 
 ```powershell
 azd env set AGENT_DEFAULT_GATEWAY aigateway
 azd deploy agent-maf agent-langgraph
 python scripts/demo_walkthrough.py --ids demo-ids.local.json --agent both --gateway aigateway --dry-run
 ```
+
+> [!NOTE]
+> The v1.2 live run passed S1-S5 for both agents on both gateways; see [04 - Testing](./04-testing.md#live-validation-2026-10-02) for timings and the defects found.
 
 ### Part F - Audit proof and regression <img src="./assets/icons/log-analytics.svg" width="24" alt="">
 
@@ -196,7 +201,10 @@ pytest
 
 ## If you get stuck
 
-Start with [05-troubleshooting.md](./05-troubleshooting.md), especially tenant drift, AI Gateway tier region enrollment, runtime-key 401s, model-name 404s, and hosted-agent package/host-class errors.
+Start with the decision tree in [05-troubleshooting.md](./05-troubleshooting.md), especially tenant drift, the `AIGatewayPreview` feature registration, runtime-key 401s, model-alias 404s, and Key Vault `ForbiddenByConnection` errors.
+
+> [!TIP]
+> Most v1.2 failures fall into four buckets: tenant/subscription drift, a missing feature registration, a model name that does not match the alias, and the agent identity lacking Key Vault access.
 
 Next: [01 - Architecture](./01-architecture.md) →
 

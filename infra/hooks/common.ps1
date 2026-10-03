@@ -75,13 +75,134 @@ function Assert-AzContextMatches {
 function Set-AzdEnvironmentValue {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
-        [Parameter(Mandatory = $true)][string]$Value
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Value
     )
     & azd env set $Name $Value | Out-Host
     if ($LASTEXITCODE -ne 0) {
         throw "azd env set failed for $Name."
     }
     [Environment]::SetEnvironmentVariable($Name, $Value, "Process")
+}
+
+function Get-AiGatewayKeyDelivery {
+    $delivery = (Get-EnvValue -Name "AIGW_KEY_DELIVERY" -Default "keyvault").Trim().ToLowerInvariant()
+    Assert-AllowedValue -Name "AIGW_KEY_DELIVERY" -Value $delivery -Allowed @("keyvault", "env")
+    return $delivery
+}
+
+function Get-JsonMember {
+    param($Object, [Parameter(Mandatory = $true)][string]$Name)
+    if ($null -eq $Object) { return $null }
+    $prop = $Object.PSObject.Properties[$Name]
+    if ($null -eq $prop) { return $null }
+    return $prop.Value
+}
+
+function ConvertFrom-MixedJsonOutput {
+    # CLI output can carry banner/update lines around the JSON document; keep only the outermost { ... }.
+    param([AllowNull()][AllowEmptyString()][string]$Text)
+    if ([string]::IsNullOrWhiteSpace($Text)) { return $null }
+    $start = $Text.IndexOf("{")
+    $end = $Text.LastIndexOf("}")
+    if ($start -lt 0 -or $end -le $start) { return $null }
+    try { return $Text.Substring($start, $end - $start + 1) | ConvertFrom-Json }
+    catch { return $null }
+}
+
+function Get-InstancePrincipalIdFromAgentJson {
+    # Shape from `azd ai agent show --output json`: { "instance_identity": { "principal_id", "client_id" }, "blueprint": { ... } }.
+    # The agent GET data-plane response may nest the same object under versions.latest.
+    param($Agent)
+    $candidates = @(
+        (Get-JsonMember -Object $Agent -Name "instance_identity"),
+        (Get-JsonMember -Object (Get-JsonMember -Object (Get-JsonMember -Object $Agent -Name "versions") -Name "latest") -Name "instance_identity")
+    )
+    foreach ($identity in $candidates) {
+        $principalId = Get-JsonMember -Object $identity -Name "principal_id"
+        if (-not [string]::IsNullOrWhiteSpace([string]$principalId)) { return [string]$principalId }
+    }
+    return ""
+}
+
+function Get-AgentEnvKey {
+    param([Parameter(Mandatory = $true)][string]$AgentName, [Parameter(Mandatory = $true)][string]$Suffix)
+    return "AGENT_$(($AgentName.ToUpperInvariant() -replace '[ -]', '_'))_$Suffix"
+}
+
+function Get-AgentInstancePrincipalId {
+    param([Parameter(Mandatory = $true)][string]$AgentName)
+
+    # 1. Live read of the deployed agent version.
+    $showText = (& azd ai agent show $AgentName --output json --no-prompt 2>$null | Out-String)
+    $global:LASTEXITCODE = 0
+    $principalId = Get-InstancePrincipalIdFromAgentJson -Agent (ConvertFrom-MixedJsonOutput -Text $showText)
+    if ($principalId) { return $principalId }
+
+    # 2. Value the azure.ai.agents extension persists in the azd environment after deploy.
+    $envKey = Get-AgentEnvKey -AgentName $AgentName -Suffix "INSTANCE_IDENTITY_PRINCIPAL_ID"
+    $stored = (& azd env get-value $envKey 2>$null | Out-String).Trim()
+    $global:LASTEXITCODE = 0
+    if ($stored -match '^[0-9a-fA-F-]{36}$') { return $stored }
+
+    # 3. Foundry data-plane GET (best effort; response shape not live-verified).
+    $projectEndpoint = (Get-EnvValue -Name "AZURE_AI_PROJECT_ENDPOINT" -Default (Get-EnvValue -Name "FOUNDRY_PROJECT_ENDPOINT")).TrimEnd("/")
+    if ($projectEndpoint) {
+        $json = & az rest --method get --resource "https://ai.azure.com" --url "$projectEndpoint/agents/${AgentName}?api-version=v1" -o json 2>$null | Out-String
+        $global:LASTEXITCODE = 0
+        $principalId = Get-InstancePrincipalIdFromAgentJson -Agent (ConvertFrom-MixedJsonOutput -Text $json)
+        if ($principalId) { return $principalId }
+    }
+    return ""
+}
+
+function Grant-KeyVaultSecretsUser {
+    # Idempotent: returns "exists" or "created"; throws only on an unexpected failure.
+    param(
+        [Parameter(Mandatory = $true)][string]$PrincipalId,
+        [Parameter(Mandatory = $true)][string]$Scope
+    )
+    $role = "Key Vault Secrets User"
+    $count = & az role assignment list --scope $Scope --role $role --query "[?principalId=='$PrincipalId'] | length(@)" -o tsv 2>$null
+    $listed = $LASTEXITCODE -eq 0
+    $global:LASTEXITCODE = 0
+    if ($listed -and "$count".Trim() -ne "" -and [int]"$count".Trim() -gt 0) { return "exists" }
+
+    # A just-created service principal can take a moment to replicate; retry PrincipalNotFound.
+    for ($attempt = 1; $attempt -le 4; $attempt++) {
+        $output = & az role assignment create --assignee-object-id $PrincipalId --assignee-principal-type ServicePrincipal --role $role --scope $Scope --only-show-errors 2>&1 | Out-String
+        $code = $LASTEXITCODE
+        $global:LASTEXITCODE = 0
+        if ($code -eq 0) { return "created" }
+        if ($output -match "RoleAssignmentExists|already exists") { return "exists" }
+        if ($output -match "PrincipalNotFound|does not exist in the directory" -and $attempt -lt 4) {
+            Start-Sleep -Seconds (10 * $attempt)
+            continue
+        }
+        throw "az role assignment create failed: $($output.Trim())"
+    }
+}
+
+function Get-AiGatewayRuntimeKey {
+    param(
+        [Parameter(Mandatory = $true)][string]$SubscriptionId,
+        [Parameter(Mandatory = $true)][string]$ResourceGroup,
+        [Parameter(Mandatory = $true)][string]$GatewayName
+    )
+    $url = "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.ApiManagement/service/$GatewayName/apiKeys/agents/listSecrets?api-version=2025-09-01-preview"
+    $secretJson = & az rest --method post --url $url -o json
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($secretJson)) {
+        throw "az rest listSecrets returned exit code $LASTEXITCODE."
+    }
+    $secretResult = $secretJson | ConvertFrom-Json
+    # listSecrets returns primaryKey at the top level; probe via PSObject so strict mode does not throw on absent members.
+    foreach ($candidate in @($secretResult, (Get-JsonMember -Object $secretResult -Name "properties"))) {
+        if ($null -eq $candidate) { continue }
+        foreach ($member in "primaryKey", "value") {
+            $value = Get-JsonMember -Object $candidate -Name $member
+            if (-not [string]::IsNullOrWhiteSpace([string]$value)) { return [string]$value }
+        }
+    }
+    throw "AI Gateway apiKeys/listSecrets response did not include primaryKey."
 }
 
 function Ensure-GatewayAppRegistration {

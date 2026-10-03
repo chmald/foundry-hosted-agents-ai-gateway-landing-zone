@@ -26,6 +26,8 @@
     "acaSubnetPrefix": { "value": "${ACA_SUBNET_PREFIX=10.40.2.0/23}" },
     "apimSubnetPrefix": { "value": "${APIM_SUBNET_PREFIX=10.40.4.0/27}" },
     "peSubnetPrefix": { "value": "${PE_SUBNET_PREFIX=10.40.5.0/24}" },
+    "aigwSubnetPrefix": { "value": "${AIGW_SUBNET_PREFIX=10.40.6.0/27}" },
+    "aigwInboundPrivateEndpoint": { "value": "${AIGW_INBOUND_PRIVATE_ENDPOINT=true}" },
     "modelName": { "value": "${MODEL_NAME=gpt-5.5}" },
     "modelVersion": { "value": "${MODEL_VERSION=2026-04-24}" },
     "modelDeploymentName": { "value": "${MODEL_DEPLOYMENT_NAME=chat}" },
