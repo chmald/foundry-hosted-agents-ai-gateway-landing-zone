@@ -39,8 +39,9 @@ def key_from_key_vault(vault_uri: str, secret_name: str) -> str:
 
 def cli_token(scope: str) -> str:
     resource = scope[: -len("/.default")] if scope.endswith("/.default") else scope
+    tenant = os.environ.get("AZURE_TENANT_ID")
     result = subprocess.run(
-        ["az", "account", "get-access-token", "--tenant", "<TENANT_ID>", "--resource", resource, "--query", "accessToken", "-o", "tsv"],
+        ["az", "account", "get-access-token", *(["--tenant", tenant] if tenant else []), "--resource", resource, "--query", "accessToken", "-o", "tsv"],
         check=True,
         capture_output=True,
         text=True,

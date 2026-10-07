@@ -1,4 +1,8 @@
-# Foundry Hosted Agents + AI Gateway Landing Zone
+# Secure Enterprise Agents Landing Zone
+
+> Formerly published as `foundry-hosted-agents-ai-gateway-landing-zone`. Old links redirect automatically.
+
+**Run enterprise AI agents securely:** Foundry hosted agents behind an AI Gateway, with governed model and tool access and audit-first landing-zone posture.
 
 <p align="center">
   <img src="./docs/assets/icons/foundry.svg" width="40" alt="Microsoft Foundry">
@@ -245,4 +249,4 @@ Upstream samples were used as design references; this demo re-implements the pat
 
 ---
 
-*Last updated: 2026-10-02*
+*Last updated: 2026-10-07*

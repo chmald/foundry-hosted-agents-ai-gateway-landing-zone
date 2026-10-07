@@ -45,8 +45,9 @@ def ai_token() -> str:
     try:
         return DefaultAzureCredential().get_token("https://ai.azure.com/.default").token
     except Exception:
+        tenant = os.environ.get("AZURE_TENANT_ID")
         result = subprocess.run(
-            ["az", "account", "get-access-token", "--tenant", "<TENANT_ID>", "--resource", "https://ai.azure.com", "--query", "accessToken", "-o", "tsv"],
+            ["az", "account", "get-access-token", *(["--tenant", tenant] if tenant else []), "--resource", "https://ai.azure.com", "--query", "accessToken", "-o", "tsv"],
             check=True,
             capture_output=True,
             text=True,

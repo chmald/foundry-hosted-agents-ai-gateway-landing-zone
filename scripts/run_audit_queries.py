@@ -17,7 +17,8 @@ class AzCliCredential:
     def get_token(self, *scopes, **kwargs):
         scope=scopes[0] if scopes else "https://api.loganalytics.io/.default"
         resource=scope[:-len("/.default")] if scope.endswith("/.default") else scope
-        token=subprocess.run(["az","account","get-access-token","--tenant","<TENANT_ID>","--resource",resource,"-o","json"],check=True,capture_output=True,text=True)
+        tenant=os.environ.get("AZURE_TENANT_ID")
+        token=subprocess.run(["az","account","get-access-token",*(["--tenant",tenant] if tenant else []),"--resource",resource,"-o","json"],check=True,capture_output=True,text=True)
         data=json.loads(token.stdout)
         return AccessToken(data["accessToken"], int(time.time()) + 3000)
 def main():
