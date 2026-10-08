@@ -25,6 +25,9 @@
     <img src="./docs/assets/badges/static-only.svg" alt="validation: Network isolation static-only">
   </p>
 
+> [!WARNING]
+> **For testing and demonstration purposes only.** This is a personal reference demo provided "as is" under the [MIT License](LICENSE), without warranty or support. It is not an official Microsoft product or sample, has not been through a production security review, and is not intended for production use. Review, test, and harden it before reusing any part of it, deploy only to non-production subscriptions, and never use real customer or personal data.
+
   A reusable demo pattern for running **Microsoft Foundry** (formerly Azure AI Foundry) hosted agents behind governed model and tool gateways. It is for platform engineers, solution architects, and Solution Engineers who need to show - and then adapt - how an agent estate stays governed, observable, and auditable. Version 1.2 runs both hosted agents (Microsoft Agent Framework and LangGraph) on the **official Foundry hosting libraries**, and live-validates both gateways (`apimv2` and the AI Gateway tier, selectable as `apimv2`, `aigateway`, or `both`) end to end on 2026-10-02. Network isolation now creates its private endpoints and DNS zones, but that mode is validated statically only.
 
 ## At a glance
@@ -247,6 +250,16 @@ Upstream samples were used as design references; this demo re-implements the pat
 | 2026-10-02 | Visual documentation pass: product icons, status badges, callouts, step cards. | [`docs/assets/icons/README.md`](./docs/assets/icons/README.md). |
 | 2026-10-02 | v1.2 moves both agents to the official Foundry hosts, live-validates the AI Gateway tier (`Microsoft.ApiManagement/service`, sku `AIGateway`), and adds isolation-mode private endpoints (static-only). | `CHANGELOG.md` 1.2.0 entry and [04 - Testing](./docs/04-testing.md#live-validation-2026-10-02). <img src="./docs/assets/badges/live-tested.svg" alt="Live-tested"> |
 
+## Disclaimer
+
+> [!CAUTION]
+> This project is provided for testing, learning, and demonstration purposes only. It is not an official Microsoft product, sample, or service, and it is not supported under any Microsoft support program. Azure services, APIs, and pricing referenced here change over time — validate against current Microsoft Learn documentation before relying on any detail. Deploying it creates billable Azure resources; you are responsible for their cost, security, and cleanup.
+
+## License
+
+> [!NOTE]
+> Released under the [MIT License](LICENSE).
+
 ---
 
-*Last updated: 2026-10-07*
+*Last updated: 2026-10-08*
