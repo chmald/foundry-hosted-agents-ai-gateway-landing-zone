@@ -223,7 +223,7 @@ If `gpt-5.5` is missing or quota is zero, pick another region/model and update `
 ## Cost table (estimate - verify with the Azure Pricing Calculator)
 
 > [!CAUTION]
-> These are **relative cost bands, not quotes**. AI Gateway tier pricing is not yet announced. Use the [Azure Pricing Calculator](https://azure.microsoft.com/pricing/calculator/) and the Foundry [pricing page](https://azure.microsoft.com/pricing/details/foundry-agent-service/) before committing a number to a customer.
+> These are **relative cost bands, not quotes**. AI Gateway tier pricing is not yet announced. Use the [Azure Pricing Calculator](https://azure.microsoft.com/pricing/calculator/) and the Foundry [pricing page](https://azure.microsoft.com/pricing/details/foundry-agent-service/) before committing to a budget.
 
 | | Component | Cost driver | Relative band (estimate) |
 |---|---|---|---|
