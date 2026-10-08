@@ -15,7 +15,7 @@
 
 ![GA](./assets/badges/ga.svg) ![Preview](./assets/badges/preview.svg) ![live-tested](./assets/badges/live-tested.svg) ![version](./assets/badges/version.svg)
 
-A customer-shareable script for the hosted-agent and AI gateway landing zone. The story runs as a **matrix**: two agent frameworks (Microsoft Agent Framework and LangGraph) against two gateway targets (APIM v2 and the AI Gateway tier), through five steps, **S1 to S5**, that end in the audit trail.
+A shareable presenter script for the hosted-agent and AI gateway landing zone. The story runs as a **matrix**: two agent frameworks (Microsoft Agent Framework and LangGraph) against two gateway targets (APIM v2 and the AI Gateway tier), through five steps, **S1 to S5**, that end in the audit trail.
 
 ## At a glance
 

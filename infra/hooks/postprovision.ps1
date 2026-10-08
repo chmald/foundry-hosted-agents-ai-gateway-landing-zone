@@ -37,7 +37,7 @@ if (Test-AiGatewayTierEnabled -Mode $mode) {
                 $secretPresent = $true
             }
             else {
-                # ARM control-plane read: works even when policy disables Key Vault public data-plane access (live-verified with MCAPS governance policy).
+                # ARM control-plane read: works even when policy disables Key Vault public data-plane access (live-verified under an organization policy that disables it).
                 $existing = & az rest --method get --url "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$resourceGroup/providers/Microsoft.KeyVault/vaults/$keyVaultName/secrets/${secretName}?api-version=2023-07-01" --query id -o tsv 2>$null
                 $secretPresent = ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($existing))
                 $global:LASTEXITCODE = 0

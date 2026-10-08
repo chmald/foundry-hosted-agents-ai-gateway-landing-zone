@@ -55,7 +55,7 @@ When `FOUNDRY_HOSTING_ENVIRONMENT` is set, the agent code builds `ManagedIdentit
 
 ### Key Vault access under network policy
 
-Granting the role is not always enough. In the live subscription, the MCAPS policy `KeyVault_PublicNetwork_Modify` forced Key Vault public network access off. Hosted agents run **outside your VNet**, so the vault returned `ForbiddenByConnection` even with the role in place.
+Granting the role is not always enough. In the live subscription, an organization policy forced Key Vault public network access off. Hosted agents run **outside your VNet**, so the vault returned `ForbiddenByConnection` even with the role in place.
 
 | Option | What it does | Status |
 |---|---|---|

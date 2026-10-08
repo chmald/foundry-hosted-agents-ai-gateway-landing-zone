@@ -21,7 +21,7 @@
   <img src="./assets/badges/live-tested.svg" alt="validation: Live-tested">
 </p>
 
-Architecture guide for platform engineers, solution architects, and developers who need to understand how two hosted-agent frameworks, two gateway families, tool backends, identity, and audit telemetry fit together. Read it before a customer workshop so you can answer "where does this call go, who authenticated it, and where is it logged?" for every hop.
+Architecture guide for platform engineers, solution architects, and developers who need to understand how two hosted-agent frameworks, two gateway families, tool backends, identity, and audit telemetry fit together. Read it before an architecture review or workshop so you can answer "where does this call go, who authenticated it, and where is it logged?" for every hop.
 
 ## At a glance
 
@@ -50,7 +50,7 @@ Architecture guide for platform engineers, solution architects, and developers w
 
 | | Mode | Status | What it means |
 |---|---|---|---|
-| <img src="./assets/icons/api-management.svg" width="20" alt=""> | **`apimv2`** | <img src="./assets/badges/default.svg" alt="Default"> <img src="./assets/badges/ga.svg" alt="GA"> | Only APIM v2 is deployed. Safe baseline for customer-facing demos. |
+| <img src="./assets/icons/api-management.svg" width="20" alt=""> | **`apimv2`** | <img src="./assets/badges/default.svg" alt="Default"> <img src="./assets/badges/ga.svg" alt="GA"> | Only APIM v2 is deployed. Safe baseline for shared, repeatable demos. |
 | <img src="./assets/icons/ai-gateway.svg" width="20" alt=""> | **`aigateway`** | <img src="./assets/badges/opt-in.svg" alt="Opt-in"> <img src="./assets/badges/public-preview.svg" alt="Public preview"> | Only the AI Gateway tier is deployed. East US 2 / Sweden Central only. |
 | <img src="./assets/icons/monitor.svg" width="20" alt=""> | **`both`** | <img src="./assets/badges/opt-in.svg" alt="Opt-in"> | Both deployed; `AGENT_DEFAULT_GATEWAY` (passed to the agents as `HOSTED_DEFAULT_GATEWAY`) picks which one the agents call. |
 
@@ -154,7 +154,7 @@ Both paths start the same way: a client calls a hosted agent endpoint, and the a
 | **D4** | Tools: native MCP (`catalog-mcp`, "Expose and govern an existing MCP server") + REST exposed as MCP (`records-api`, "Expose REST API in API Management as an MCP server") | Shows both "bring your MCP server" and "wrap my REST API" governance paths. | Two tool servers, one allow-list. |
 | **D5** | Identity: Entra validation on APIM; honest key-based identity on the tier | APIM can validate Entra tokens; AI Gateway tier runtime keys are not per-principal validation. | Docs and audit schema avoid overstating preview identity. |
 | **D6** | Traceability: propagate `traceparent` and `x-gw-request-id` end to end | Needed to join agent, gateway, and backend evidence. | Cross-system correlation remains DIY. |
-| **D7** | Monitoring plane: resource-specific tables, saved KQL, workbook, alerts | GA operational surface, mature policy, resource-specific diagnostics. | Customer-facing demos start on `apimv2`. |
+| **D7** | Monitoring plane: resource-specific tables, saved KQL, workbook, alerts | GA operational surface, mature policy, resource-specific diagnostics. | Shared and repeatable demos start on `apimv2`. |
 | **D8** | Landing-zone network: public endpoints with Entra auth by default; `NETWORK_ISOLATION=true` adds VNet `10.40.0.0/16`, delegated subnets, 8 private endpoints and 9 private DNS zones (what-if validated, not live-deployed) | Keeps the first build fast; private is an explicit add-on. | Private build adds time (see [00](./00-reproduce-this-demo.md#time-budget)). |
 | **D9** | Guardrails: `llm-content-safety` (`ENABLE_CONTENT_SAFETY`), `llm-token-limit` per agent identity, MCP tool allow-list, `rate-limit-by-key` on MCP | Controls belong at the choke point, not in each agent. | Same guardrail for both frameworks. |
 | **D10** | Known gaps listed openly | A demo that hides gaps loses credibility. | See [README known gaps](../README.md#known-gaps). |
@@ -214,7 +214,7 @@ Tool **names** stay `list_items`, `search_items`, ... for every domain - the gat
 ## References
 
 > [!NOTE]
-> The AI Gateway tier is a public preview; re-check these pages before a customer session because resource shapes can change.
+> The AI Gateway tier is a public preview; re-check these pages before a live session because resource shapes can change.
 
 - AI Gateway tier overview: <https://learn.microsoft.com/en-us/azure/api-management/ai-gateway-overview>
 - AI Gateway models and tools: <https://learn.microsoft.com/en-us/azure/api-management/ai-gateway-manage-models-tools>

@@ -19,7 +19,7 @@
   <img src="./assets/badges/static-only.svg" alt="validation: Network isolation static-only">
 </p>
 
-Single-page orchestrator for standing up the **Foundry Hosted Agents + AI Gateway Landing Zone** from an empty Azure subscription. Use it for checkpoints before opening the deeper runbooks. It is written for the person who will actually run the build - a Solution Engineer or platform engineer - and every part ends with a checkpoint you can tick off.
+Single-page orchestrator for standing up the **Foundry Hosted Agents + AI Gateway Landing Zone** from an empty Azure subscription. Use it for checkpoints before opening the deeper runbooks. It is written for the person who will actually run the build - typically a platform engineer or developer - and every part ends with a checkpoint you can tick off.
 
 ## At a glance
 
@@ -76,7 +76,7 @@ Key Vault (runtime key) ──┘        Application Insights + Log Analytics + 
 ### Part A - Ground truth and authentication <img src="./assets/icons/entra-id.svg" width="24" alt="">
 
 > [!WARNING]
-> `az` and `azd` keep **separate** logins, and the ambient active account silently drifts across tenants. Always sign in with an explicit tenant and verify before any deployment. Never use the corporate/CRM tenant for a demo deployment.
+> `az` and `azd` keep **separate** logins, and the ambient active account silently drifts across tenants. Always sign in with an explicit tenant and verify before any deployment. Never deploy a demo into a production or shared corporate tenant by accident.
 
 | Step | | Action | Validation |
 |---|---|---|---|

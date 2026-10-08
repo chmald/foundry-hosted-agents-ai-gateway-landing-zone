@@ -154,7 +154,7 @@ Plan capacity from the documented limits, not from the demo's defaults ([network
 | | Strategy | Recommended settings |
 |---|---|---|
 | <img src="./assets/icons/resource-group.svg" width="24" alt=""/> | **Demo / comparison** | `AI_GATEWAY_MODE=both`; start with `AGENT_DEFAULT_GATEWAY=apimv2`, then a second pass with `aigateway`. |
-| <img src="./assets/icons/api-management.svg" width="24" alt=""/> | **Customer-facing, repeatable** | `AI_GATEWAY_MODE=apimv2` unless AI Gateway tier (<img src="./assets/badges/public-preview.svg" alt="Public preview">) use is explicitly approved. |
+| <img src="./assets/icons/api-management.svg" width="24" alt=""/> | **Shared, repeatable** | `AI_GATEWAY_MODE=apimv2` unless AI Gateway tier (<img src="./assets/badges/public-preview.svg" alt="Public preview">) use is explicitly approved. |
 | <img src="./assets/icons/ai-gateway.svg" width="24" alt=""/> | **Preview validation** | `AI_GATEWAY_MODE=both` in East US 2 or Sweden Central, with the `AIGatewayPreview` feature registered and a live report captured. |
 | <img src="./assets/icons/private-endpoint.svg" width="24" alt=""/> | **Private posture** | Keep the decision explicit per gateway; one setting does not secure both. |
 | <img src="./assets/icons/subscription.svg" width="24" alt=""/> | **Environment tiers** | Use one Foundry project per environment tier (dev, test, production), each its own azd environment. |

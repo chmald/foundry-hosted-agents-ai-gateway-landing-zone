@@ -83,4 +83,4 @@ if ($failed.Count -gt 0) {
 else {
     Write-Host "Role assignments can take a few minutes to propagate; the agent retries the Key Vault read on its next request."
 }
-Write-Host "If the agent still gets 403 ForbiddenByConnection, Key Vault public access is disabled (e.g. by MCAPS policy): use NETWORK_ISOLATION=true (private endpoint + agent subnet injection), or as a demo-only compromise set AIGW_KEY_DELIVERY=env and re-run 'azd provision' then 'azd deploy'." -ForegroundColor Cyan
+Write-Host "If the agent still gets 403 ForbiddenByConnection, Key Vault public access is disabled (e.g. by an organization policy): use NETWORK_ISOLATION=true (private endpoint + agent subnet injection), or as a demo-only compromise set AIGW_KEY_DELIVERY=env and re-run 'azd provision' then 'azd deploy'." -ForegroundColor Cyan

@@ -28,7 +28,7 @@
 > [!WARNING]
 > **For testing and demonstration purposes only.** This is a personal reference demo provided "as is" under the [MIT License](LICENSE), without warranty or support. It is not an official Microsoft product or sample, has not been through a production security review, and is not intended for production use. Review, test, and harden it before reusing any part of it, deploy only to non-production subscriptions, and never use real customer or personal data.
 
-  A reusable demo pattern for running **Microsoft Foundry** (formerly Azure AI Foundry) hosted agents behind governed model and tool gateways. It is for platform engineers, solution architects, and Solution Engineers who need to show - and then adapt - how an agent estate stays governed, observable, and auditable. Version 1.2 runs both hosted agents (Microsoft Agent Framework and LangGraph) on the **official Foundry hosting libraries**, and live-validates both gateways (`apimv2` and the AI Gateway tier, selectable as `apimv2`, `aigateway`, or `both`) end to end on 2026-10-02. Network isolation now creates its private endpoints and DNS zones, but that mode is validated statically only.
+  A reusable demo pattern for running **Microsoft Foundry** (formerly Azure AI Foundry) hosted agents behind governed model and tool gateways. It is for platform engineers, solution architects, and developers who need to demonstrate - and then adapt - how an agent estate stays governed, observable, and auditable. Version 1.2 runs both hosted agents (Microsoft Agent Framework and LangGraph) on the **official Foundry hosting libraries**, and live-validates both gateways (`apimv2` and the AI Gateway tier, selectable as `apimv2`, `aigateway`, or `both`) end to end on 2026-10-02. Network isolation now creates its private endpoints and DNS zones, but that mode is validated statically only.
 
 ## At a glance
 
@@ -229,12 +229,12 @@ Upstream samples were used as design references; this demo re-implements the pat
 ## Known gaps
 
 > [!NOTE]
-> **Be honest in the room.** These are open items, not hidden ones.
+> **Known limitations.** These are open items, not hidden ones.
 > - No first-party hosted-agent CI/CD template exists; treat `.github/workflows/deploy.yml` as a starting point only.
 > - One Foundry project per environment tier is the supported isolation model.
 > - Cross-system trace correlation (agent ↔ gateway ↔ backend) is DIY - the pattern propagates `traceparent` and `x-gw-request-id`, but there is no single platform join.
 > - The effective runtime identity of a hosted agent is its **instance identity**, which exists only after the agent is deployed, so Bicep cannot grant it Key Vault access. The `postdeploy` hook does it, but that hook is not yet verified live.
-> - Under an MCAPS-style Key Vault network policy, hosted agents (which run outside your VNet) get `ForbiddenByConnection` on Key Vault. The proper fix is network isolation mode; `AIGW_KEY_DELIVERY=env` is a demo-only compromise that stores the key in plaintext in the azd env and agent configuration.
+> - Under an organization policy that disables Key Vault public network access, hosted agents (which run outside your VNet) get `ForbiddenByConnection` on Key Vault. The proper fix is network isolation mode; `AIGW_KEY_DELIVERY=env` is a demo-only compromise that stores the key in plaintext in the azd env and agent configuration.
 > - `NETWORK_ISOLATION=true` now creates private endpoints and DNS zones, but it is validated by `what-if` only (127 resources, no errors) and was never live-deployed. The hosted-agent endpoint stays public, APIM and the AI Gateway tier stay public until a manual lockdown, and there is no AMPLS. See [10 - Enterprise posture and scale](./docs/10-enterprise-posture-and-scale.md).
 > - The AI Gateway tier writes its LLM and MCP telemetry to Application Insights `AppRequests`, not to `ApiManagementGatewayLlmLog`; only the 429 policy probe was exercised among its policies.
 

@@ -153,7 +153,7 @@ The hook skips itself when `AIGW_KEY_DELIVERY=env`, when `AI_GATEWAY_MODE=apimv2
 > ```
 
 > [!WARNING]
-> **Key Vault network policy.** Under a policy that forces Key Vault public access off (for example the MCAPS `KeyVault_PublicNetwork_Modify` policy), hosted agents - which run outside your VNet - get `ForbiddenByConnection` even with the role granted. The proper fix is `NETWORK_ISOLATION=true` (Key Vault private endpoint plus agent subnet injection; not yet live-validated). The demo-only compromise is:
+> **Key Vault network policy.** Under a policy that forces Key Vault public access off (for example, an organization policy that sets Key Vault `publicNetworkAccess` to `Disabled`), hosted agents - which run outside your VNet - get `ForbiddenByConnection` even with the role granted. The proper fix is `NETWORK_ISOLATION=true` (Key Vault private endpoint plus agent subnet injection; not yet live-validated). The demo-only compromise is:
 > ```powershell
 > azd env set AIGW_KEY_DELIVERY env
 > azd provision   # postprovision writes the key into the azd env

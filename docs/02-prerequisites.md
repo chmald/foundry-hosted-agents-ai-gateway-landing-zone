@@ -163,7 +163,7 @@ Australia East · Brazil South · Canada Central · Canada East · Central US ·
 | <img src="./assets/icons/entra-id-protection.svg" width="20" alt=""> | **Gateway-scoped keys** | One key reaches all models and tools in the gateway during preview; create separate keys per app/environment where possible. |
 
 > [!WARNING]
-> Preview networking (inbound Private Link, outbound VNet integration) for the AI Gateway tier is itself in preview, and the tier private endpoint plus outbound integration are not verified end to end. Do not promise private-only AI Gateway tier traffic in a customer commitment.
+> Preview networking (inbound Private Link, outbound VNet integration) for the AI Gateway tier is itself in preview, and the tier private endpoint plus outbound integration are not verified end to end. Do not assume private-only AI Gateway tier traffic in a customer commitment.
 
 ## Model availability matrix (dated 2026-10-02)
 

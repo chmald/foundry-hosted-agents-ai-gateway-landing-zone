@@ -113,7 +113,7 @@ Hosted agents run the official hosts (no fallback server). Hosted agents are GA;
 
 ### Hosted agent gets ForbiddenByConnection from Key Vault
 
-<img src="./assets/icons/key-vault.svg" width="24" alt="Key Vault"/> The agent log shows a Key Vault 403 with `ForbiddenByConnection`, even though the role assignment exists. Hosted agents run **outside your VNet**, and a policy such as the MCAPS `KeyVault_PublicNetwork_Modify` forces Key Vault public network access off, so the vault firewall rejects them. This happened in the live run.
+<img src="./assets/icons/key-vault.svg" width="24" alt="Key Vault"/> The agent log shows a Key Vault 403 with `ForbiddenByConnection`, even though the role assignment exists. Hosted agents run **outside your VNet**, and when an organization policy disables Key Vault public network access, the vault firewall rejects them. This happened in the live run.
 
 | Order | Fix | Notes |
 |---|---|---|

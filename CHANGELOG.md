@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Docs: rewrote for external audiences; removed internal terminology. Policy-specific references now describe a generic organization policy that disables Key Vault public network access (docs, README, `postprovision`/`postdeploy-agents` hook messages); audience lines name platform engineers and developers; demo and walkthrough wording no longer assumes a customer session; the gateway-modes diagram reads "Recommendation: default baseline" (PNG re-exported); `lint_doc_visuals.py` docstrings use neutral wording and a `<repo-root>` example. `tests/test_reusability_guards.py` gains `test_no_internal_terminology` over every tracked text file.
+
 ## 1.2.0 - 2026-10-02
 
 Official agent hosts, AI Gateway tier proven live, and isolation mode now creates its private endpoints.
